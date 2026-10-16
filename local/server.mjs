@@ -30,6 +30,13 @@ const SHIM = path.join(HERE, 'pb-local.js');
 // ---------- config & members ----------
 const ROLES = { view: 1, interact: 2, admin: 3 };
 const RULES = { project: { write: 'admin' }, items: { write: 'admin' }, log: { write: 'admin' }, replies: { write: 'admin' }, board: { write: 'admin' }, req_replies: { write: 'admin' }, secret: { read: 'interact', write: 'admin' } };
+// Coding agents the request button can run. {prompt} = the request prompt. Override with run.cmd in config.json.
+// Codex/Gemini flags: check your installed version (codex exec --help, gemini --help).
+const AGENTS = {
+  claude: ['claude', '-p', '{prompt}', '--output-format', 'json', '--permission-mode', 'acceptEdits', '--allowedTools', '{allowedTools}'],
+  codex: ['codex', 'exec', '--sandbox', 'workspace-write', '{prompt}'],
+  gemini: ['gemini', '--approval-mode', 'auto_edit', '-p', '{prompt}'],
+};
 const DEFAULT_TOOLS = 'Read,Glob,Grep,Edit,Write,Bash(git status),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(node --check:*)';
 fs.mkdirSync(SECRET_DIR, { recursive: true });
 const gi = path.join(DATA, '.gitignore');
@@ -38,7 +45,7 @@ let conf = fs.existsSync(CONF) ? JSON.parse(fs.readFileSync(CONF, 'utf8')) : nul
 const tok = () => crypto.randomBytes(18).toString('base64url');
 const newId = () => crypto.randomBytes(6).toString('hex');
 if (!conf) {
-  conf = { members: {}, run: { enabled: true, allowedTools: DEFAULT_TOOLS, extraArgs: [] }, publicUrl: '' };
+  conf = { members: {}, run: { enabled: true, agent: opt('agent', 'claude'), allowedTools: DEFAULT_TOOLS, extraArgs: [] }, publicUrl: '' };
   const id = newId();
   conf.members[id] = { name: opt('name', 'owner'), email: '', role: 'admin', owner: true, token: tok(), at: Date.now() };
 }
@@ -99,15 +106,18 @@ function pump() {
   const r = next.data, who = (conf.members[r.by] || {}).name || 'unknown';
   putDoc('req_replies', next.id, { state: 'working', at: Date.now() });
   const prompt = runPrompt(who, r.text || '', next.id);
-  const argv = ['-p', prompt, '--output-format', 'json', '--permission-mode', 'acceptEdits', '--allowedTools', conf.run.allowedTools, ...(conf.run.extraArgs || [])];
+  const agent = opt('agent', conf.run.agent || 'claude');
+  const tpl = conf.run.cmd || AGENTS[agent];
+  if (!tpl) { putDoc('req_replies', next.id, { reply: '알 수 없는 에이전트: ' + agent, at: Date.now() }); running = null; return; }
+  const [cmd, ...argv] = tpl.map((a) => (a === '{prompt}' ? prompt : a === '{allowedTools}' ? conf.run.allowedTools : a)).concat(conf.run.extraArgs || []);
   console.log(`[run] ${next.id} from ${who}: ${(r.text || '(empty)').slice(0, 80)}`);
   let out = '', err = '';
-  const ch = spawn(conf.run.command || 'claude', argv, { cwd: PROJECT, env: process.env });
+  const ch = spawn(cmd, argv, { cwd: PROJECT, env: process.env });
   ch.stdout.on('data', (b) => (out += b)); ch.stderr.on('data', (b) => (err += b));
   const finish = (reply) => { putDoc('req_replies', next.id, { reply: String(reply).trim().slice(0, 1200), at: Date.now() }); running = null; console.log(`[run] ${next.id} done`); setTimeout(pump, 500); };
-  ch.on('error', (e) => finish('실행하지 못했어: ' + e.message + ' (이 컴퓨터에 Claude Code가 설치·로그인돼 있는지 확인)'));
+  ch.on('error', (e) => finish('실행하지 못했어: ' + e.message + ' (이 컴퓨터에 그 에이전트 CLI가 설치·로그인돼 있는지 확인)'));
   ch.on('close', (code) => {
-    let res = ''; try { const j = JSON.parse(out); res = j.result || ''; if (j.is_error) res = '실패: ' + res; } catch { res = out || err; }
+    let res = ''; try { const j = JSON.parse(out); res = j.result || ''; if (j.is_error) res = '실패: ' + res; } catch { res = out.trim() || err; }
     if (code && !res) res = '실패 (코드 ' + code + '): ' + err.slice(-300);
     finish(lastPara(res) || '끝났어 (답변 없음)');
   });
@@ -124,7 +134,7 @@ ${text || '(empty: handle the open comments listed in the digest)'}
 >>>
 
 Rules:
-1. Read ./${rel}/notes/digest.md first for context. Follow this repo's CLAUDE.md.
+1. Read ./${rel}/notes/digest.md first for context. Follow this repo's agent instructions (CLAUDE.md / AGENTS.md / GEMINI.md).
 2. Scope: this project folder only. Don't touch ./${rel}/.secret, other folders, accounts, credentials or anything outside the project. Refuse out-of-scope parts and say why.
 3. If the plan changes, edit only the relevant ./${rel}/items/<id>.md (keep ids and front matter keys).
 4. When done: write ./${rel}/log/<new id>.json = {"text": "<what you did, requester ${who}>", "phase": "<item id or empty>", "state": "review", "at": <ms timestamp>}; for each comment you handled, write ./${rel}/replies/<commentId>.json = {"reply": "...", "at": <ms>}.
@@ -178,7 +188,7 @@ function adminPage(req, me) {
 <p>Public URL: <b>${esc(conf.publicUrl || '(none — only this computer/LAN can open it; start with --tunnel)')}</b></p>
 <form id="f"><input name="name" placeholder="name" required><input name="email" placeholder="email (optional)"><select name="role"><option value="interact">collaborator (comment, request)</option><option value="view">view only</option><option value="admin">admin (edit plan)</option></select><button>Create invite link</button></form>
 <table><tr><th>name</th><th>email</th><th>role</th><th>invite link</th><th></th></tr>${rows}</table>
-<p>Requests run Claude Code on this computer: <b>${conf.run.enabled ? 'on' : 'off'}</b> · allowed tools: <code>${esc(conf.run.allowedTools)}</code> (edit ${esc(path.relative(PROJECT, CONF))})</p>
+<p>Requests run <b>${esc(conf.run.cmd ? conf.run.cmd[0] : opt("agent", conf.run.agent || "claude"))}</b> on this computer: <b>${conf.run.enabled ? "on" : "off"}</b> · allowed tools: <code>${esc(conf.run.allowedTools)}</code> (edit ${esc(path.relative(PROJECT, CONF))})</p>
 <script>const H={'Content-Type':'application/json','X-PB':'1'};
 f.onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(f));const r=await fetch('/api/members',{method:'POST',headers:H,body:JSON.stringify(d)});if(r.ok)location.reload();else alert((await r.json()).error)};
 document.querySelectorAll('.del').forEach(b=>b.onclick=async()=>{if(!confirm('Remove this member? Their link stops working.'))return;await fetch('/api/members',{method:'DELETE',headers:H,body:JSON.stringify({id:b.dataset.id})});location.reload()});</script>`;

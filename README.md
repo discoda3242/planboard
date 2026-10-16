@@ -11,7 +11,8 @@ You can run the same board page in two ways:
 | Who can open it | people you share the artifact with | people you send an invite link to |
 | Request button | optional: Cloudflare Worker + claude.ai routine | built in: runs Claude Code on your machine |
 | Code map | optional: from GitHub, through the Worker | built in: from your local files |
-| Needs | Claude Pro, Max, Team or Enterprise | Node 20+; Claude Code for requests; `cloudflared` to share outside your network |
+| Needs | Claude Pro, Max, Team or Enterprise | Node 20+; a coding agent CLI (Claude Code, Codex, Gemini…) for requests; `cloudflared` to share outside your network |
+| AI | Claude only | any file-editing agent |
 
 > The board's interface is currently in Korean. The data format and these docs are in English.
 
@@ -52,9 +53,18 @@ You can run the same board page in two ways:
    - **Only you:** use neither flag.
 
 **Requests**
-- When a collaborator sends a request from the **요청** tab, the server runs `claude -p` in your project folder with the request, one request at a time.
-- The answer appears under the request. Claude can also update plan files, reply to comments and add a log entry.
-- It uses your Claude Code login and subscription.
+- When a collaborator sends a request from the **요청** tab, the server runs a coding agent CLI in your project folder, one request at a time.
+- The agent's final message appears under the request. The agent can also update plan files, reply to comments and add a log entry.
+- It uses that agent's login and subscription on your machine.
+
+**Which agent**
+- The local board is plain files, so any agent that can read and edit files can use it. Choose one with `--agent` (saved in `.secret/config.json` as `run.agent`):
+  - `claude` (default): Claude Code, `claude -p`
+  - `codex`: OpenAI Codex CLI, `codex exec`
+  - `gemini`: Gemini CLI, `gemini -p`
+- **Any other CLI:** set `run.cmd` in the config to an argument list containing `"{prompt}"`, for example `["aider", "--yes", "--message", "{prompt}"]`.
+- **Check flags first:** the codex and gemini presets assume current CLI flags. Check `codex exec --help` or `gemini --help` before relying on them.
+- **Per-agent safety:** only the Claude preset restricts which tools can run, through `run.allowedTools`. With the others, safety depends on each CLI's sandbox and approval settings.
 
 **Code map**
 - **코드 구조 보기** (code map) on the Structure tab draws your project's files from disk.
@@ -66,14 +76,14 @@ You can run the same board page in two ways:
 - To change that, edit `run.allowedTools` in `planboard/.secret/config.json`. Set `run.enabled` to `false` to turn requests off.
 - Anyone with an invite link can get in, so treat links like passwords.
 
-**Working with Claude Code yourself:** add this to your project's `CLAUDE.md`:
+**Working with an agent yourself:** add this to your project's agent instructions (`CLAUDE.md`, `AGENTS.md` for Codex, `GEMINI.md` for Gemini):
 
 ```
 Planboard (local): read planboard/notes/digest.md at the start of each task.
 Plan items are planboard/items/<id>.md. When done, add planboard/log/<id>.json and planboard/replies/<commentId>.json.
 ```
 
-Server options: `--port 8787`, `--data planboard` (data folder inside the project), `--lan`, `--host`, `--tunnel`, `--name <owner name>`.
+Server options: `--port 8787`, `--data planboard` (data folder inside the project), `--lan`, `--host`, `--tunnel`, `--name <owner name>`, `--agent claude|codex|gemini`.
 
 ---
 
