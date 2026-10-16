@@ -36,7 +36,7 @@ Never read or re-publish the page HTML for routine work. Use the ArtifactData to
 - Use `update` with the full `md` only for rewrites; new items are `set`. Multi-item `update`/`set`/`delete` go in one `batch`
   (batch has no `str_replace`).
 - Never rename existing ids: comments reference them. New items get new ids (`p6`, `s10`…) and an `order`.
-- `project/info` = `{title, eyebrow, lead, footer, links:[{label,url}], tags:[{id,label,desc,color}]}`.
+- `project/info` = `{title, eyebrow, lead, footer, links:[{label,url}], tags:[{id,label,desc,color}], project?, runUrl?, runMode?}`.
 - v1 items (goal/todo/blocks fields, no `md`) still render; convert them to `md` when you edit them.
 - To link items explicitly, write `[[s3]]` (any item id) in an `md`; the 구조 tab draws it.
 
@@ -58,4 +58,4 @@ Never read or re-publish the page HTML for routine work. Use the ArtifactData to
 ## Updating the page
 The page code lives only in the template repo. Never hand-edit a board's HTML: change `planboard.html` there, commit,
 then republish the same file to each board (omit `capabilities` to keep them; if a newer live version exists, merge first).
-Run button setup (요청 tab, button server, run key): see the planboard-run-button skill.
+Request button (요청 tab; local mode via `runMode: "local"`, or cloud mode via button server + run key) and processing the local request queue: see the planboard-run-button skill.
