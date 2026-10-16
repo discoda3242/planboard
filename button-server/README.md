@@ -7,7 +7,7 @@ If you only use local mode, you don't need this server. See the main README.
 ## Routes
 
 - **`/?p=<project key>&k=<run key>`** shows a confirm page. On confirm it starts that project's routine, and the tab closes on success.
-- **`/map?p=<project key>&k=<run key>`** shows the project's GitHub repo as a file tree and dependency graph.
+- **`/map?p=<project key>&k=<run key>`** shows the project's GitHub repo as a file tree and dependency graph. If the project has no `KEY_<KEY>` secret (map-only projects), the map opens without a run key; projects with a key still check it.
 - **Run key:** a wrong key returns 403 on both routes. Keep the same value in two places: the board's `secret/run.key`, which only collaborators can read, and the Worker secret `KEY_<KEY>`.
 
 ## First-time setup

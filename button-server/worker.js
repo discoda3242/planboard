@@ -44,8 +44,10 @@ export default {
     const form = req.method === "POST" ? await req.formData() : null;
     const runKey = form ? form.get("k") : url.searchParams.get("k");
     const expected = env[envName("KEY_", key)];
-    if (!expected) return page("설정 필요", `<p>${envName("KEY_", key)} 시크릿이 등록되지 않았어.</p>${seen(env)}`, 500);
-    if (!safeEqual(runKey, expected)) {
+    // 코드 구조 보기는 실행 키 없이도 된다 (KEY_<KEY>가 등록된 프로젝트만 키를 확인). 실행 버튼은 항상 키가 필요.
+    const mapOpen = url.pathname === "/map" && !expected;
+    if (!expected && !mapOpen) return page("설정 필요", `<p>${envName("KEY_", key)} 시크릿이 등록되지 않았어.</p>${seen(env)}`, 500);
+    if (!mapOpen && !safeEqual(runKey, expected)) {
       return page("실행 권한이 없어", `<p>기획판에 공동작업자로 초대된 사람만 실행할 수 있어. <a href="${esc(proj.board)}">기획판</a>의 버튼으로 다시 들어와줘.</p>`, 403);
     }
     // 코드 구조 보기: /map?p=<key>&k=<실행 키>
