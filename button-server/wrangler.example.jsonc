@@ -1,0 +1,21 @@
+{
+  // wrangler.jsonc 로 이름을 바꿔서 쓰기. 자세한 건 README.
+  "name": "start-button",
+  "main": "worker.js",
+  "compatibility_date": "2026-06-01",
+  // Anthropic API가 일부 지역 Cloudflare 서버에서 오는 요청을 403으로 막는 경우가 있어 미국 동부 근처에서 실행
+  "placement": { "region": "aws:us-east-1" },
+  // 대시보드에서 넣은 시크릿·변수를 배포 때 지우지 않게
+  "keep_vars": true,
+  "vars": {
+    // 프로젝트 목록. 키마다 시크릿 KEY_<키 대문자>, TOKEN_<키 대문자> 를 등록
+    "PROJECTS": {
+      "myproj": {
+        "name": "내 프로젝트",
+        "trigger": "trig_XXXXXXXXXXXXXXXXXXXXXXXX",
+        "board": "https://claude.ai/artifact/XXXXXXXXXXXXXXXXXXXXXX",
+        "repo": "your-github-id/your-repo"
+      }
+    }
+  }
+}

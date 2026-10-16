@@ -1,0 +1,12 @@
+[
+  {"op":"set","collection":"project","doc_id":"info","data":{
+    "title":"예시 프로젝트","eyebrow":"PLAN BOARD","lead":"한 줄로 프로젝트를 설명해.","footer":"단계 순서는 앞 단계 결과를 보고 바뀔 수 있어.",
+    "links":[{"label":"결과물 열기","url":"https://example.com"}],
+    "tags":[{"id":"core","label":"핵심","desc":"제일 중요한 재미","color":"accent"},{"id":"ops","label":"운영","desc":"관리·밸런스","color":"amber"},{"id":"make","label":"제작","desc":"콘텐츠 만들기","color":"mint"}]}},
+  {"op":"set","collection":"items","doc_id":"p0","data":{"type":"phase","order":0,"num":0,"title":"프로토타입","badge":"완료","state":"done",
+    "md":"핵심 재미가 있는지 확인하는 단계.\n- 기본 조작 #core\n- 한 판 흐름 #ops\n완료: 처음부터 끝까지 한 판 할 수 있다"}},
+  {"op":"set","collection":"items","doc_id":"p1","data":{"type":"phase","order":1,"num":1,"title":"다듬기","badge":"다음","state":"next",
+    "md":"처음 하는 사람도 재밌게.\n- 난이도 곡선 정리 [[s1]] #ops\n- 콘텐츠 3개 추가 #make\n? 한 판 목표를 시간으로 할지 점수로 할지"}},
+  {"op":"set","collection":"items","doc_id":"s1","data":{"type":"spec","order":1,"title":"난이도",
+    "md":"> 규칙 · 처음 3분은 누구나 버틴다.\n\n| 구간 | 내용 |\n|---|---|\n| 0~3분 | 기본 적만 |\n| 3분~ | 빠른 적 추가 |\n\n※ 숫자는 테스트하면서 바꿔."}}
+]
