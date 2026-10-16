@@ -5,3 +5,4 @@
 - `button-server/`는 버튼 서버 **원본 코드**. 개인 설정(프로젝트 목록·주소)은 넣지 않는다. `wrangler.example.jsonc`만 둔다.
 - `skills/`는 다른 사람이 그대로 올려 쓸 수 있는 일반 버전이다. 개인 기획판 링크·예약 작업 ID를 넣지 않는다.
 - README와 skills/는 처음 보는 사람 기준으로 영어로 쓴다 (페이지 UI 문구는 아직 한국어).
+- `local/server.mjs`는 의존성 없이 Node 20+로 돈다. 페이지는 수정 없이 `pb-local.js` 심을 주입해서 쓰므로, 페이지가 쓰는 `claude.use('db'|'user')` API를 바꾸면 심도 같이 고친다.
