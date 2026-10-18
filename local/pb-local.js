@@ -1,9 +1,11 @@
 // Planboard local shim: gives the page the same window.claude.use('db'|'user') API it has on claude.ai,
-// backed by the local server (/api/*) with live updates over server-sent events.
+// backed by the local server (/api/*) with live updates over server-sent events,
+// or by the planboard hub (window.PB_BASE = '/b/<board>', window.PB_WS = true: live updates over a WebSocket).
 (function () {
+  const B = window.PB_BASE || '';
   const H = { 'Content-Type': 'application/json', 'X-PB': '1' };
   async function api(method, url, body) {
-    const r = await fetch(url, { method, headers: H, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'same-origin' });
+    const r = await fetch(B + url, { method, headers: H, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'same-origin' });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
     return j;
@@ -19,10 +21,18 @@
   }
   function sub(kind, path, cb, err) { const s = { kind, path, col: path.split('/')[0], cb, err }; subs.add(s); refresh(s); return () => subs.delete(s); }
   let es;
+  const onMsg = (ev) => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } for (const s of subs) if (m.all || s.col === m.col) refresh(s); };
+  const again = () => setTimeout(() => { listen(); for (const s of subs) refresh(s); }, 3000);
   function listen() {
-    es = new EventSource('/api/events');
-    es.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } for (const s of subs) if (m.all || s.col === m.col) refresh(s); };
-    es.onerror = () => { es.close(); setTimeout(() => { listen(); for (const s of subs) refresh(s); }, 3000); };
+    if (window.PB_WS) {
+      const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + B + '/api/ws');
+      let ping = 0; ws.onopen = () => { ping = setInterval(() => { try { ws.send('ping'); } catch (e) {} }, 30000); };
+      ws.onmessage = onMsg; ws.onclose = () => { clearInterval(ping); again(); };
+      return;
+    }
+    es = new EventSource(B + '/api/events');
+    es.onmessage = onMsg;
+    es.onerror = () => { es.close(); again(); };
   }
   listen();
   const db = {
