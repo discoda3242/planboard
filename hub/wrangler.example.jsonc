@@ -3,12 +3,13 @@
 //          npx wrangler secret put CI_KEY                (only if you use the GitHub Action claim check)
 //          npx wrangler secret put GITHUB_CLIENT_ID      (GitHub OAuth app — "Sign in with GitHub")
 //          npx wrangler secret put GITHUB_CLIENT_SECRET
+//          npx wrangler secret put GH_APP_ID / GH_APP_KEY / GH_WEBHOOK_SECRET   (merge gate: the board's GitHub App)
 {
   "name": "planboard-hub",
   "main": "worker.js",
   "compatibility_date": "2026-09-01",
   "build": { "command": "node build.mjs" },
-  "vars": { "OWNER_GITHUB": "your-github-username" },
+  "vars": { "OWNER_GITHUB": "your-github-username", "GH_BOARDS": { "your-org/your-repo": "board-name" }, "GH_CHECKS": "build" },
   "durable_objects": { "bindings": [{ "name": "BOARD", "class_name": "Board" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Board"] }]
 }
