@@ -14,7 +14,7 @@ The board on a server, shared by people **and their AIs**. Each collaborator con
 | 2 | `claim(module, task, note, agent)` | Blocked if someone else holds it. Otherwise returns the files you may edit and the module's contracts. The board shows "<name> · <agent> · <module> — <note>". |
 | 3 | `status(module, note)` | One-line progress, shown live. Also extends the claim. The agent works on branch `claim/<id>` and opens a PR. |
 | 4 | `contract(name, propose, reason)` | Change an interface. Applied if you hold the providing module (or are admin); otherwise filed as a request for the provider to approve. Users of that contract get a board comment. |
-| 5 | `release(module, summary)` | After the PR is merged: logs the summary on the board and frees the module. |
+| 5 | `release(module, summary, pr)` | The board checks the PR and merges it (see *Merge gate*), then logs the summary and frees the module. Without a PR (no code change), it just logs and frees. |
 
 Plus `reply` (answer a comment) and `item` (read a plan item or the memo; admins can edit items).
 
@@ -52,14 +52,29 @@ Globs: `src/room.js`, `src/**`, `tests/*.js`, `**/*.md`.
    - Claude Code: `claude mcp add --transport http planboard <MCP URL>`
    - Gemini CLI, in `~/.gemini/settings.json`: `{ "mcpServers": { "planboard": { "httpUrl": "<MCP URL>" } } }`
 
-## CI claim check
+## Merge gate (the board checks and merges PRs)
 
-Each pull request is checked against the board: the branch `claim/<id>` (or `Planboard-Claim: <id>` lines in commit messages) names the claim, every changed file must belong to that claim's module (or the `_free` list), and the PR author's GitHub account must be the claim holder's.
+The board is the only one that merges into `main`. An agent pushes its branch `claim/<id>`, opens a PR and calls `release(module, summary, pr: <number>)`. The board then checks, using its GitHub App:
 
-1. `npx wrangler secret put CI_KEY`.
-2. In the code repo, set the variable `PLANBOARD_HUB` = `https://<worker>.workers.dev/b/<board>` and the secret `PLANBOARD_CI_KEY` = the same CI key.
-3. Add a workflow that posts `{files, claims, branch, actor}` to `POST /b/<board>/api/ci-check` (example: `.github/` in github.com/discoda3242/claw-machine).
-4. To make the check binding, require it before merging into `main` (branch protection or a ruleset). On GitHub Free these are only available for public repositories.
+| Check | Where it runs |
+|---|---|
+| The PR's claim is valid and still the current one | board |
+| Every changed file is inside the claimed module (or `_free`) | board (reads the PR's file list) |
+| The PR author's GitHub account is the claim holder's | board |
+| Build and tests pass (`GH_CHECKS`, default `build`) | GitHub Actions in the code repo; the board reads the result |
+
+- All green: the board squash-merges, frees the module and logs the summary. Something wrong: the agent gets the reasons, fixes the same branch and calls `release(pr)` again. The module stays claimed until the merge, so nobody starts from an outdated `main`.
+- When checks are still running the board waits for GitHub's webhook (no polling). The board also posts a `planboard` status on the PR.
+
+**Making it binding without a paid plan:** branch protection on a private repo needs GitHub Pro, but a free **organization** can give members read-only access:
+1. Move the repo into a GitHub organization (free plan).
+2. Give collaborators the **Read** role. In the org settings allow forking private repositories, and in the repo's Actions settings allow running workflows from fork pull requests, so their PRs come from forks.
+3. Create a GitHub App owned by the org with permissions *Pull requests: read & write*, *Contents: read & write*, *Checks: read*, *Commit statuses: read & write*; subscribe to *Pull request*, *Check suite* and *Check run* events; webhook URL `https://<worker>.workers.dev/gh/webhook` with a secret. Install it on the repo.
+4. `npx wrangler secret put GH_APP_ID`, `GH_APP_KEY` (paste the app's private key PEM), `GH_WEBHOOK_SECRET`; set `GH_BOARDS` in `wrangler.jsonc` (`{"org/repo": "board"}`) and deploy.
+
+Now only the owner and the board's app can write to `main`; everything else arrives as a PR that the board checks.
+
+**Without the GitHub App:** `/api/ci-check` (Bearer `CI_KEY`) still answers the claim/file/author check for a workflow to call, but nothing stops a direct merge.
 
 ## Security
 
