@@ -1,11 +1,14 @@
 // Copy to wrangler.jsonc, then: npx wrangler deploy
-// Secrets: npx wrangler secret put OWNER_KEY   (any long random string — your master link)
-//          npx wrangler secret put CI_KEY      (only if you use the GitHub Action claim check)
+// Secrets: npx wrangler secret put OWNER_KEY             (any long random string — your master link)
+//          npx wrangler secret put CI_KEY                (only if you use the GitHub Action claim check)
+//          npx wrangler secret put GITHUB_CLIENT_ID      (GitHub OAuth app — "Sign in with GitHub")
+//          npx wrangler secret put GITHUB_CLIENT_SECRET
 {
   "name": "planboard-hub",
   "main": "worker.js",
   "compatibility_date": "2026-09-01",
   "build": { "command": "node build.mjs" },
+  "vars": { "OWNER_GITHUB": "your-github-username" },
   "durable_objects": { "bindings": [{ "name": "BOARD", "class_name": "Board" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Board"] }]
 }

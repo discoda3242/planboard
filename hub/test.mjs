@@ -135,4 +135,70 @@ resp = await mcp({ jsonrpc: '2.0', id: 1, method: 'ping' }, 'badtoken123'); asse
 resp = await f('/api/ci-check', { method: 'POST', headers: { Authorization: 'Bearer ci-key' }, body: JSON.stringify({ files: ['src/room.js'], claims: [] }) });
 assert.equal((await resp.json()).ok, false);
 resp = await f('/api/col?name=claimlog', { headers: { Cookie: 'pb_t=' + tok } }); assert.equal(resp.status, 403);
+
+// ---- GitHub members, per-session claims, CI identity ----
+{
+  const h = new Hub(memStore(), { now: () => T });
+  const o = await h.member((await h.addMember({ name: '지은', role: 'admin', owner: true, github: 'Discoda3242' })).id);
+  const y = await h.member((await h.addMember({ name: '', role: 'interact', github: '@YuSak' })).id);
+  assert.equal(o.github, 'discoda3242'); assert.equal(y.name, 'yusak'); assert.equal((await h.byGithub('YUSAK')).id, y.id);
+  await assert.rejects(h.addMember({ name: 'x', github: 'yusak' }), /이미 멤버/);
+  await h.put('modules', 'room', { files: ['src/room.js'] }); await h.put('modules', 'physics', { files: ['src/physics.js'] });
+  // same person, two sessions
+  let r = await h.call(y, 'claim', { module: 'room', note: 'A', agent: 'Gemini' }, { sid: 's1' }); const cid = r.match(/claim (\w+)/)[1];
+  assert.match(r, /브랜치 claim\/\w+/);
+  r = await h.call(y, 'claim', { module: 'room', note: 'B', agent: 'Claude' }, { sid: 's2' }); assert.equal(r.error, true); assert.match(r.text, /네 다른 AI 세션\(Gemini/);
+  r = await h.call(y, 'claim', { module: 'room', note: 'A2', agent: 'Gemini' }, { sid: 's1' }); assert.match(r, /잡았어/, 'same session renews');
+  r = await h.call(y, 'claim', { module: 'room', note: 'B', agent: 'Claude' }, { sid: 's2' }); assert.equal(r.error, true);
+  r = await h.call(y, 'claim', { module: 'room', note: 'B', agent: 'Claude', takeover: true }, { sid: 's2' }); assert.match(r, /잡았어/);
+  assert.equal((await h.claims()).room.sid, 's2'); assert.equal((await h.claims()).room.id, cid);
+  // no session ids (e.g. a client without them): different agent names still collide
+  await h.call(y, 'claim', { module: 'physics', note: 'p', agent: 'Claude' }); r = await h.call(y, 'claim', { module: 'physics', note: 'q', agent: 'gemini' }); assert.equal(r.error, true);
+  // CI: branch name carries the claim, PR author must be the claim holder
+  let ci = await h.ciCheck({ files: ['src/room.js'], branch: 'claim/' + cid, actor: 'yusak' }); assert.deepEqual(ci, { ok: true, bad: [] });
+  ci = await h.ciCheck({ files: ['src/room.js'], branch: 'claim/' + cid, actor: 'discoda3242' }); assert.equal(ci.ok, false); assert.match(ci.bad.join(), /yusak\)의 claim인데 discoda3242이\(가\) 올림/);
+  ci = await h.ciCheck({ files: ['src/room.js'], branch: 'claim/nope1234', actor: 'yusak' }); assert.match(ci.bad.join(), /기획판에 없는 claim/);
+  const n = await h.member((await h.addMember({ name: 'nogh', role: 'interact' })).id);
+  const r2 = await h.call(n, 'claim', { module: 'physics', note: 'x', agent: 'A' }); assert.equal(r2.error, true); // held by yusak
+  await h.call(y, 'release', { module: 'physics', summary: 's' });
+  const id2 = (await h.call(n, 'claim', { module: 'physics', note: 'x', agent: 'A' })).match(/claim (\w+)/)[1];
+  ci = await h.ciCheck({ files: ['src/physics.js'], claims: [id2], actor: 'nogh' }); assert.match(ci.bad.join(), /GitHub 아이디가 기획판에 등록 안 됨/);
+  await h.setGithub(n.id, 'nogh'); assert.equal((await h.ciCheck({ files: ['src/physics.js'], claims: [id2], actor: 'NoGH' })).ok, true);
+  await assert.rejects(h.setGithub(n.id, 'yusak'), /이미 yusak에게/);
+}
+
+// ---- Worker: GitHub sign-in, MCP session header ----
+{
+  const st2 = memStore(); const env2 = { OWNER_KEY: 'k'.repeat(20), GITHUB_CLIENT_ID: 'cid', GITHUB_CLIENT_SECRET: 'sec', OWNER_GITHUB: 'Discoda3242' };
+  const b2 = new Board({ storage: { ...st2, setAlarm: async () => {}, deleteAlarm: async () => {} }, getWebSockets: () => [], acceptWebSocket() {} }, env2);
+  env2.BOARD = { idFromName: (n) => n, get: () => ({ fetch: (r) => b2.fetch(r) }) };
+  const W = (path, init = {}) => worker.fetch(new Request('https://hub.example.dev' + path, init), env2);
+  let gh = 'discoda3242'; const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { url = String(url);
+    if (url.startsWith('https://github.com/login/oauth/access_token')) { assert.equal(JSON.parse(init.body).code, 'c0de'); return new Response(JSON.stringify({ access_token: 'gho_x' })); }
+    if (url === 'https://api.github.com/user') return new Response(JSON.stringify({ login: gh, name: gh === 'discoda3242' ? '지은' : null }));
+    throw new Error('unexpected fetch ' + url); };
+  let r = await W('/b/game/', {}); let t = await r.text(); assert.equal(r.status, 401); assert.ok(t.includes('/b/game/login') && t.includes('GitHub로 로그인'));
+  r = await W('/b/game/__gh', { method: 'POST', body: '{"login":"discoda3242"}' }); assert.equal(r.status, 404, 'internal route is not reachable from outside');
+  r = await W('/b/game/login'); assert.equal(r.status, 302); const loc = new URL(r.headers.get('Location')); assert.equal(loc.host, 'github.com');
+  const state = loc.searchParams.get('state'); assert.match(r.headers.get('Set-Cookie'), new RegExp('pb_oauth=' + state.replace('.', '\\.')));
+  r = await W('/auth/github/callback?code=c0de&state=' + state, { headers: { Cookie: 'pb_oauth=forged.state' } }); assert.equal(r.status, 400, 'state must match the cookie');
+  r = await W('/auth/github/callback?code=c0de&state=' + state, { headers: { Cookie: 'pb_oauth=' + state } }); assert.equal(r.status, 302);
+  const ck2 = r.headers.get('Set-Cookie').match(/pb_t=([^;]+)/)[1];
+  r = await W('/b/game/api/me', { headers: { Cookie: 'pb_t=' + ck2 } }); let me2 = await r.json(); assert.equal(me2.role, 'admin'); assert.equal(me2.isOwner, true);
+  r = await W('/b/game/api/members', { method: 'POST', headers: { Cookie: 'pb_t=' + ck2, 'X-PB': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ github: 'yusak', role: 'interact' }) });
+  const ytok = (await r.json()).link.split('t=')[1];
+  gh = 'stranger'; r = await W('/auth/github/callback?code=c0de&state=' + state, { headers: { Cookie: 'pb_oauth=' + state } }); assert.equal(r.status, 403); assert.ok((await r.text()).includes('stranger'));
+  gh = 'yusak'; r = await W('/auth/github/callback?code=c0de&state=' + state, { headers: { Cookie: 'pb_oauth=' + state } }); assert.equal(r.status, 302);
+  assert.equal(decodeURIComponent(r.headers.get('Set-Cookie').match(/pb_t=([^;]+)/)[1]), ytok);
+  r = await W('/b/game/admin', { headers: { Cookie: 'pb_t=' + ck2 } }); t = await r.text(); assert.ok(t.includes('value="yusak"'));
+  globalThis.fetch = realFetch;
+  // MCP: initialize hands out a session id; claims made under it are tied to that session
+  const M2 = (body, sid) => W('/b/game/mcp/' + ytok, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(sid ? { 'Mcp-Session-Id': sid } : {}) }, body: JSON.stringify(body) });
+  await b2.hub.put('modules', 'room', { files: ['src/room.js'] });
+  r = await M2({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }); const sidA = r.headers.get('Mcp-Session-Id'); assert.ok(sidA);
+  r = await M2({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }); const sidB = r.headers.get('Mcp-Session-Id'); assert.notEqual(sidA, sidB);
+  r = await M2({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'claim', arguments: { module: 'room', note: 'a', agent: 'Claude' } } }, sidA); assert.match((await r.json()).result.content[0].text, /잡았어/);
+  r = await M2({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'claim', arguments: { module: 'room', note: 'b', agent: 'Claude' } } }, sidB); assert.match((await r.json()).result.content[0].text, /네 다른 AI 세션/);
+}
 console.log('hub tests passed');
