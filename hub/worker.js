@@ -27,10 +27,13 @@ export default {
 export class Board {
   constructor(ctx, env) {
     this.ctx = ctx; this.env = env; this.pending = new Set(); this.timer = 0;
-    const st = ctx.storage;
-    this.hub = new Hub({ get: (k) => st.get(k), put: (k, v) => st.put(k, v), delete: (k) => st.delete(k), list: (p) => st.list({ prefix: p }) },
-      { onChange: (col) => this.changed(col) });
+    this.hub = new Hub(memCache(ctx.storage), { onChange: (col) => this.changed(col) });
+    // pings from open board pages are answered by Cloudflare without waking this object (no duration billed)
+    try { ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong')); } catch {}
   }
+  // wake exactly when the earliest claim runs out, free it (page shows it at once), then sleep again
+  async schedule() { const n = await this.hub.nextExpiry(); if (n) await this.ctx.storage.setAlarm(n + 1000); else await this.ctx.storage.deleteAlarm(); }
+  async alarm() { await this.hub.expire(); await this.schedule(); }
   changed(col) {
     this.pending.add(col);
     if (this.timer) return;
@@ -54,6 +57,7 @@ export class Board {
         if (req.method !== 'POST') return new Response('MCP endpoint: POST JSON-RPC', { status: 405, headers: { Allow: 'POST' } });
         const me = await this.hub.byToken(mm[1]); if (!me || me.removed) return json(401, { error: 'unknown member token' });
         const out = await mcpHandle(this.hub, me, await req.json());
+        await this.schedule();
         return out ? json(200, out) : new Response(null, { status: 202 });
       }
       if (p === '/api/ci-check') {
@@ -126,6 +130,17 @@ document.querySelectorAll('td input').forEach(i=>i.onclick=()=>i.select());</scr
   }
 }
 
+// The whole board lives in memory while the object is awake: one full read when it wakes, then every get/list is free.
+// Writes go to storage and memory together. (The object is the only writer of its storage, so the copy can't go stale.)
+function memCache(st) {
+  let all = null; const load = async () => (all = all || new Map([...(await st.list())].sort(([a], [b]) => (a < b ? -1 : 1))));
+  return {
+    get: async (k) => structuredClone((await load()).get(k)),
+    put: async (k, v) => { await st.put(k, v); (await load()).set(k, structuredClone(v)); },
+    delete: async (k) => { await st.delete(k); (await load()).delete(k); },
+    list: async (p) => { const m = await load(); return new Map([...m].filter(([k]) => k.startsWith(p)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => [k, structuredClone(v)])); },
+  };
+}
 function page(slug) {
   const pre = `<script>window.PB_BASE='/b/${slug}';window.PB_WS=true;</script><script src="/b/${slug}/pb-local.js"></script>`;
   let s = PAGE; const i = s.indexOf('<script'); s = i >= 0 ? s.slice(0, i) + pre + s.slice(i) : pre + s;

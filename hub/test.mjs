@@ -8,7 +8,7 @@ const { default: worker, Board } = await import('./worker.js');
 function memStore() {
   const m = new Map();
   return { m, get: async (k) => structuredClone(m.get(k)), put: async (k, v) => void m.set(k, structuredClone(v)), delete: async (k) => void m.delete(k),
-    list: async (o) => { const p = typeof o === 'string' ? o : o.prefix; return new Map([...m].filter(([k]) => k.startsWith(p)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => [k, structuredClone(v)])); } };
+    list: async (o) => { const p = typeof o === 'string' ? o : (o && o.prefix) || ''; return new Map([...m].filter(([k]) => k.startsWith(p)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => [k, structuredClone(v)])); } };
 }
 let T = Date.parse('2026-10-19T01:00:00Z');
 const hub = new Hub(memStore(), { now: () => T });
@@ -69,10 +69,17 @@ assert.match(r, /풀었어/); assert.equal((await hub.claims()).room, undefined)
 logs = await hub.list('log'); assert.equal(logs[0].data.state, 'review'); assert.match(logs[0].data.text, /부품 시스템 1차/);
 assert.equal((await hub.ciCheck({ files: ['src/room.js'], claims: [claimId] })).ok, true, 'released claim still valid for CI for a while');
 
-// expiry frees a silent claim
-await call(a, 'claim', { module: 'arcade', note: 'UI' });
+// expiry frees a silent claim; the next holder supersedes it, so the old claim id no longer passes CI
+r = await call(a, 'claim', { module: 'arcade', note: 'UI' }); const oldId = r.match(/claim (\w+)/)[1];
+assert.equal(await hub.nextExpiry(), T + LEASE_MIN * 6e4);
 T += (LEASE_MIN + 1) * 6e4;
+await hub.expire(); assert.equal(await hub.nextExpiry(), 0); // what the alarm does
+assert.equal((await hub.ciCheck({ files: ['src/index.src.html'], claims: [oldId] })).ok, true, 'expired but nobody took it yet: still accepted');
 r = await call(b, 'claim', { module: 'arcade', note: '내가 할게' }); assert.match(r, /잡았어: arcade/);
+ci = await hub.ciCheck({ files: ['src/index.src.html'], claims: [oldId] }); assert.equal(ci.ok, false); assert.match(ci.bad[0], /시간 초과로 풀린 뒤 다른 사람이/);
+await assert.rejects(call(a, 'status', { module: 'arcade', note: '아직 하는 중' }), /응답이 없어서 풀렸어 — 지금 유삭이\(가\) 잡고 있어/);
+await call(b, 'release', { module: 'arcade', summary: 'x' });
+await assert.rejects(call(a, 'release', { module: 'arcade', summary: 'x' }), /다시 claim하고 이어서 해/);
 
 // replies, items, memo
 const cid = (await hub.list('comments'))[0].id;
@@ -89,12 +96,14 @@ let res = await mcpHandle(hub, b, { jsonrpc: '2.0', id: 1, method: 'initialize',
 assert.equal(res.result.protocolVersion, '2025-06-18'); assert.match(res.result.instructions, /claim/);
 assert.equal(await mcpHandle(hub, b, { jsonrpc: '2.0', method: 'notifications/initialized' }), null);
 res = await mcpHandle(hub, b, { jsonrpc: '2.0', id: 2, method: 'tools/list' }); assert.equal(res.result.tools.length, 7);
+await call(b, 'claim', { module: 'arcade', note: 'y' });
 res = await mcpHandle(hub, a, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'claim', arguments: { module: 'arcade', note: 'x' } } });
 assert.equal(res.result.isError, true); assert.match(res.result.content[0].text, /막힘/);
 
 // ---- Worker routes through a fake Durable Object ----
 const st = memStore(); const sent = [];
-const ctx = { storage: { get: st.get, put: st.put, delete: st.delete, list: st.list }, getWebSockets: () => [{ send: (x) => sent.push(x) }], acceptWebSocket() {} };
+let alarmAt = null;
+const ctx = { storage: { get: st.get, put: st.put, delete: st.delete, list: st.list, setAlarm: async (t) => { alarmAt = t; }, deleteAlarm: async () => { alarmAt = null; } }, getWebSockets: () => [{ send: (x) => sent.push(x) }], acceptWebSocket() {} };
 const env = { OWNER_KEY: 'owner-master-key-123', CI_KEY: 'ci-key' };
 const board = new Board(ctx, env);
 env.BOARD = { idFromName: (n) => n, get: () => ({ fetch: (req) => board.fetch(req) }) };
@@ -119,7 +128,8 @@ resp = await post('/api/members', { name: '유삭', role: 'interact' }); const l
 resp = await f('/admin', { headers: auth }); txt = await resp.text(); assert.ok(txt.includes('/b/claw/mcp/' + tok));
 const mcp = (body, t = tok) => f('/mcp/' + t, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify(body) });
 resp = await mcp({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'claim', arguments: { module: 'room', note: '테스트', agent: 'Claude' } } });
-assert.match((await resp.json()).result.content[0].text, /잡았어/);
+assert.match((await resp.json()).result.content[0].text, /잡았어/); assert.ok(alarmAt > Date.now(), 'alarm set for the lease end');
+const rows = st.m.size; await board.hub.list('items'); await board.hub.get('items', 'p1'); assert.equal(st.m.size, rows);
 resp = await mcp({ jsonrpc: '2.0', method: 'notifications/initialized' }); assert.equal(resp.status, 202);
 resp = await mcp({ jsonrpc: '2.0', id: 1, method: 'ping' }, 'badtoken123'); assert.equal(resp.status, 401);
 resp = await f('/api/ci-check', { method: 'POST', headers: { Authorization: 'Bearer ci-key' }, body: JSON.stringify({ files: ['src/room.js'], claims: [] }) });

@@ -75,8 +75,9 @@ export class Hub {
   async endClaim(module, c, state, text) {
     await this.del('claims', module);
     const lg = await this.get('log', c.logId); if (lg) await this.put('log', c.logId, { ...lg, state: state === 'expired' ? 'review' : state, text: text || lg.text, at: this.now() });
-    const cl = await this.get('claimlog', c.id); if (cl) await this.put('claimlog', c.id, { ...cl, end: this.now() });
+    const cl = await this.get('claimlog', c.id); if (cl) await this.put('claimlog', c.id, { ...cl, end: this.now(), how: state === 'expired' ? 'expired' : 'released' });
   }
+  async nextExpiry() { let n = 0; for (const { data } of await this.list('claims')) if (!n || data.until < n) n = data.until; return n; }
   async renew(me) { const t = this.now(); for (const { id, data } of await this.list('claims')) if (data.by === me.id && data.until > t) await this.put('claims', id, { ...data, until: t + LEASE_MIN * 6e4 }); }
 
   // ---------- contracts ----------
@@ -121,7 +122,10 @@ export class Hub {
     const c = { id, by: me.id, name: me.name, agent: clip(agent, 20), task: clip(task, 20), note: clip(note, 120), since: cur ? cur.since : t, until: t + LEASE_MIN * 6e4, logId };
     await this.put('claims', module, c);
     await this.put('log', logId, { phase: c.task, state: 'working', note: `${me.name}${c.agent ? ' · ' + c.agent : ''} · ${module} — ${c.note}`, at: t, by: me.id, module });
-    if (!cur) await this.put('claimlog', id, { module, by: me.id, since: t, end: null });
+    if (!cur) {
+      for (const { id: oid, data: o } of await this.list('claimlog')) if (o.module === module && o.how === 'expired' && !o.superseded && o.by !== me.id) await this.put('claimlog', oid, { ...o, superseded: t });
+      await this.put('claimlog', id, { module, by: me.id, since: t, end: null });
+    }
     return `잡았어: ${module} (claim ${id}, ${hhmm(c.until)}까지 · 호출할 때마다 연장)
 고칠 수 있는 파일: ${(mod.files || []).join(', ')}
 그 밖의 파일은 고치지 마. 커밋 메시지에 "Planboard-Claim: ${id}"를 넣어 (CI가 확인).
@@ -130,15 +134,21 @@ ${mod.note ? '모듈 메모: ' + mod.note + '\n' : ''}
 ${await this.contractsFor(mod)}`;
   }
 
+  async lostClaim(me, module) {
+    const mine = (await this.list('claimlog')).filter((x) => x.data.module === module && x.data.by === me.id && x.data.how === 'expired').sort((a, b) => b.data.end - a.data.end)[0];
+    const now = (await this.claims())[module];
+    if (mine) return httpErr(409, `네 ${module} claim(${mine.id})은 ${hhmm(mine.data.end)}에 응답이 없어서 풀렸어${now ? ` — 지금 ${now.name}이(가) 잡고 있어. 하던 작업을 멈추고 사용자에게 알려` : ' — 다시 claim하고 이어서 해 (새 claim 번호로 커밋)'}.`);
+    return httpErr(400, `${module}은(는) 네가 잡은 모듈이 아니야`);
+  }
   async t_status(me, { module, note }) {
-    const c = (await this.claims())[module]; if (!c || c.by !== me.id) throw httpErr(400, `${module}은(는) 네가 잡은 모듈이 아니야`);
+    const c = (await this.claims())[module]; if (!c || c.by !== me.id) throw await this.lostClaim(me, module);
     await this.put('claims', module, { ...c, note: clip(note, 120) });
     const lg = await this.get('log', c.logId); if (lg) await this.put('log', c.logId, { ...lg, note: `${c.name}${c.agent ? ' · ' + c.agent : ''} · ${module} — ${clip(note, 120)}`, at: this.now() });
     return 'ok';
   }
 
   async t_release(me, { module, summary, state = 'review', commit = '' }) {
-    const c = (await this.claims())[module]; if (!c || (c.by !== me.id && me.role !== 'admin')) throw httpErr(400, `${module}은(는) 네가 잡은 모듈이 아니야`);
+    const c = (await this.claims())[module]; if (!c || (c.by !== me.id && me.role !== 'admin')) throw await this.lostClaim(me, module);
     await this.endClaim(module, c, state === 'done' ? 'done' : 'review', clip(summary, 600) + (commit ? ` (${clip(commit, 12)})` : ''));
     return `풀었어: ${module}`;
   }
@@ -185,13 +195,14 @@ ${await this.contractsFor(mod)}`;
   // ---------- CI: are these changed files inside modules the commit's claims hold? ----------
   async ciCheck({ files = [], claims = [] }) {
     const mods = await this.list('modules'), free = ((await this.get('modules', '_free')) || {}).files || [];
-    const logs = {}; for (const id of claims) { const c = await this.get('claimlog', id); if (c && (!c.end || this.now() - c.end < CLAIMLOG_KEEP)) logs[c.module] = true; }
+    const logs = {}, stale = {};
+    for (const id of claims) { const c = await this.get('claimlog', id); if (!c) continue; if (c.superseded) stale[c.module] = id; else if (!c.end || this.now() - c.end < CLAIMLOG_KEEP) logs[c.module] = true; }
     const bad = [];
     for (const f of files) {
       if (matches(free, f)) continue;
       const owner = mods.filter((m) => !m.id.startsWith('_')).filter((m) => matches(m.data.files, f)).map((m) => m.id);
       if (!owner.length) { bad.push(`${f}: 어느 모듈에도 없음 (관리자가 modules에 추가)`); continue; }
-      if (!owner.some((o) => logs[o])) bad.push(`${f}: ${owner.join('/')} 모듈 claim 없이 수정`);
+      if (!owner.some((o) => logs[o])) bad.push(owner.some((o) => stale[o]) ? `${f}: claim ${stale[owner.find((o) => stale[o])]}이 시간 초과로 풀린 뒤 다른 사람이 ${owner.join('/')}을(를) 잡음 — 다시 claim해서 맞춘 뒤 커밋` : `${f}: ${owner.join('/')} 모듈 claim 없이 수정`);
     }
     return { ok: !bad.length, bad };
   }

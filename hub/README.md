@@ -18,7 +18,9 @@ The board on a server, shared by people **and their AIs**. Each collaborator con
 
 Plus `reply` (answer a comment) and `item` (read a plan item or the memo; admins can edit items).
 
-- A claim lasts 45 minutes after the holder's last call, then frees itself, so a stalled agent can't hold a module forever.
+- A claim lasts 45 minutes after the holder's last call (any call renews it). If an agent stops without releasing (out of tokens, crashed, closed), a Durable Object alarm frees the module right at that time and the board shows it.
+- After a timed-out claim's module is taken by someone else, that old claim id no longer passes the CI check, and the original agent is told on its next call to stop and tell its user.
+- Cost: the object sleeps between events. Pings from open pages are answered by Cloudflare without waking it, and while awake the whole board is held in memory (one storage read per wake-up). A small team stays far inside the free plan.
 - These rules are sent to every agent in the MCP `instructions` on connect, so the project's agent file only needs a short pointer.
 
 ## Modules and contracts
