@@ -14,7 +14,6 @@ import { Hub, mcpHandle, httpErr, ROLES, randToken, ghName } from './core.js';
 import { PAGE, SHIM, UI } from './assets.js';
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,40}$/;
-const REPO = /^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}$/;
 
 export default {
   async fetch(req, env) {
@@ -85,7 +84,6 @@ export class Board {
       if (mm) {
         if (req.method !== 'POST') return new Response('MCP endpoint: POST JSON-RPC', { status: 405, headers: { Allow: 'POST' } });
         const me = await this.hub.byToken(mm[1]); if (!me || me.removed) return json(401, { error: 'unknown member token' });
-        if (!me.mcpSeen) await this.hub.markMcp(me.id);
         const mc = { sid: req.headers.get('Mcp-Session-Id') || '' };
         const out = await mcpHandle(this.hub, me, await req.json(), mc);
         await this.schedule();
@@ -131,17 +129,7 @@ export class Board {
       if (p === '/pb-local.js') return js(SHIM);
       if (p === '/hub-ui.js') return js(UI);
       if (p === '/admin') { if (me.role !== 'admin') throw httpErr(403, 'admins only'); return html(200, await this.adminPage(base, me)); }
-      if (p === '/api/me') return json(200, { id: me.id, name: me.name, email: me.email, role: me.role, isOwner: !!me.owner, github: me.github || '', aiConnected: !!me.mcpSeen, repo: (await this.hub.cfg()).repo || '' });
-      if (p === '/setup.bat' || p === '/setup.sh') { // this member's installer: clone the repo, connect their AI, add a board shortcut
-        const s = setupScript(p.endsWith('.bat') ? 'win' : 'sh', { slug, base, repo: (await this.hub.cfg()).repo || '', mcp: base + '/mcp/' + me.token });
-        return new Response(s, { headers: { 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename="${slug}-setup.${p.endsWith('.bat') ? 'bat' : 'sh'}"`, 'Cache-Control': 'no-store' } });
-      }
-      if (p === '/api/repo' && req.method === 'POST') { // admin: the board's code repo (owner/name), checked against GitHub
-        if (me.role !== 'admin') throw httpErr(403, 'admins only');
-        const repo = String((await req.json()).repo || '').trim().replace(/^https:\/\/github\.com\//, '').replace(/\.git$|\/$/g, '');
-        if (repo && !REPO.test(repo)) throw httpErr(400, 'owner/name 형식으로 적어줘');
-        await this.hub.setCfg({ repo }); return json(200, { ok: true, repo, autoInvite: !!this.env.GITHUB_REPO_TOKEN });
-      }
+      if (p === '/api/me') return json(200, { id: me.id, name: me.name, email: me.email, role: me.role, isOwner: !!me.owner, github: me.github || '' });
       if (p === '/api/profiles') { const out = {}; for (const id of (u.searchParams.get('ids') || '').split(',')) { const m = id && (await this.hub.member(id)); if (m) out[id] = { name: m.name }; } return json(200, { profiles: out }); }
       if (p === '/api/doc' && req.method === 'GET') return json(200, { data: await this.hub.apiGetDoc(me, u.searchParams.get('path')) });
       if (p === '/api/col') return json(200, { docs: await this.hub.apiCol(me, u.searchParams.get('name')) });
@@ -160,8 +148,7 @@ export class Board {
         if (me.role !== 'admin') throw httpErr(403, 'admins only');
         if (req.method === 'GET') return json(200, { members: (await this.hub.members()).filter((m) => !m.removed).map((m) => ({ id: m.id, name: m.name, github: m.github || '', role: m.role, owner: !!m.owner })) });
         const b = await req.json();
-        if (req.method === 'POST') { if (!String(b.name || '').trim() && !ghName(b.github)) throw httpErr(400, 'name or GitHub username required'); const r = await this.hub.addMember({ name: b.name, email: b.email, role: b.role, github: b.github });
-          return json(200, { id: r.id, link: base + '/join?t=' + r.token, repoInvite: await this.repoInvite(ghName(b.github), b.role).catch((e) => ({ state: 'error', why: e.message })) }); }
+        if (req.method === 'POST') { if (!String(b.name || '').trim() && !ghName(b.github)) throw httpErr(400, 'name or GitHub username required'); const r = await this.hub.addMember({ name: b.name, email: b.email, role: b.role, github: b.github }); return json(200, { id: r.id, link: base + '/join?t=' + r.token }); }
         if (req.method === 'PATCH') { await this.hub.setGithub(b.id, b.github); return json(200, { ok: true }); }
         if (req.method === 'DELETE') { await this.hub.removeMember(b.id); return json(200, { ok: true }); }
       }
@@ -188,21 +175,6 @@ export class Board {
     }
     const members = new Map((await this.hub.members()).filter((m) => !m.removed && m.github).map((m) => [m.github, m.role]));
     return { friends, signedIn: !!tok, people: list.filter((x) => x.type !== 'Organization').map((x) => ({ login: x.login, avatar: x.avatar_url, role: members.get(ghName(x.login)) || null })) };
-  }
-
-  // invite a new member to the board's code repo as a collaborator. Needs Worker secret GITHUB_REPO_TOKEN:
-  // a fine-grained token limited to the code repos with "Administration: read and write" (manages collaborators only).
-  async repoInvite(login, role) {
-    const { repo } = await this.hub.cfg();
-    if (!login || !repo) return { state: 'off', why: repo ? 'no GitHub username' : 'no repo set' };
-    if (!this.env.GITHUB_REPO_TOKEN) return { state: 'off', why: 'GITHUB_REPO_TOKEN not set' };
-    if (login === ghName(repo.split('/')[0])) return { state: 'owner' };
-    const r = await fetch(`https://api.github.com/repos/${repo}/collaborators/${login}`, { method: 'PUT',
-      headers: { Authorization: 'Bearer ' + this.env.GITHUB_REPO_TOKEN, 'User-Agent': 'planboard-hub', Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ permission: role === 'view' ? 'pull' : 'push' }) });
-    if (r.status === 201) return { state: 'sent' };
-    if (r.status === 204) return { state: 'already' };
-    return { state: 'error', why: `GitHub ${r.status}` + (r.status === 403 || r.status === 404 ? ' (token can’t manage this repo)' : '') };
   }
 
   async adminPage(base, me) {
@@ -241,42 +213,6 @@ function memCache(st) {
     delete: async (k) => { await st.delete(k); (await load()).delete(k); },
     list: async (p) => { const m = await load(); return new Map([...m].filter(([k]) => k.startsWith(p)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => [k, structuredClone(v)])); },
   };
-}
-// A member's installer, run from the folder they saved it in: clone the board's repo there (GitHub CLI handles the sign-in),
-// connect their Claude Code to the board in that folder (local scope, so the MCP URL never lands in the repo), add a board shortcut.
-// Every value put in is checked by a pattern (slug, repo, token), so nothing can break out of the script.
-function setupScript(os, { slug, base, repo, mcp }) {
-  const dir = repo ? repo.split('/')[1] : '', inv = `https://github.com/${repo}/invitations`;
-  if (os === 'win') return [
-    // ASCII only: cmd misreads UTF-8 text in .bat files (lines break mid-character), so the messages here are English
-    '@echo off', 'rem Planboard setup. Contains your personal MCP URL: do not share this file.', 'setlocal', 'cd /d "%~dp0"',
-    `echo [planboard] Connecting this computer to the ${slug} board.`,
-    ...(repo ? ['where git >nul 2>nul || goto :nogit', 'where gh >nul 2>nul || goto :nogh',
-      'gh auth status >nul 2>nul || gh auth login -h github.com -p https -w', 'gh auth setup-git >nul 2>nul',
-      `if exist "${dir}\\.git" (git -C "${dir}" pull --ff-only) else (gh repo clone ${repo} "${dir}" || goto :noclone)`,
-      `cd /d "%~dp0${dir}"`, `echo Code: %~dp0${dir}`] : []),
-    'where claude >nul 2>nul || goto :noclaude', 'call claude mcp remove planboard -s local >nul 2>nul',
-    `call claude mcp add --transport http planboard ${mcp} || goto :noclaude`,
-    'echo AI: open Claude Code in this folder - the planboard tools are connected.', 'goto :shortcut',
-    ':noclaude', 'echo AI: Claude Code not found, skipped. Another AI can use the MCP URL in this file.',
-    ':shortcut', `> "%~dp0${slug}-board.bat" echo start "" "${base}/"`, `echo Board shortcut: %~dp0${slug}-board.bat`,
-    'echo.', 'echo Done. The board shows you as connected once your AI first calls it.', 'pause', 'exit /b 0',
-    ':nogit', 'echo git is not installed. Get it from https://git-scm.com/download/win and run this file again.', 'pause', 'exit /b 1',
-    ':nogh', 'echo GitHub CLI is not installed. Run: winget install GitHub.cli - then run this file again.', 'pause', 'exit /b 1',
-    ':noclone', `echo Could not get the code. Accept the GitHub repo invitation first: ${inv}`, 'pause', 'exit /b 1', ''].join('\r\n');
-  return ['#!/bin/sh', '# Planboard setup. Contains your personal MCP URL: do not share this file.', 'cd "$(dirname "$0")" || exit 1', 'ROOT="$(pwd)"',
-    `echo "[planboard] ${slug} 기획판에 이 컴퓨터를 연결할게."`,
-    ...(repo ? ['command -v git >/dev/null || { echo "git이 없어. 설치하고 다시 실행해줘."; exit 1; }',
-      'command -v gh >/dev/null || { echo "GitHub CLI가 없어. brew install gh (리눅스: https://cli.github.com) 로 설치하고 다시 실행해줘."; exit 1; }',
-      'gh auth status >/dev/null 2>&1 || gh auth login -h github.com -p https -w', 'gh auth setup-git >/dev/null 2>&1',
-      `if [ -d "${dir}/.git" ]; then git -C "${dir}" pull --ff-only; else gh repo clone ${repo} "${dir}" || { echo "저장소를 받지 못했어. GitHub 저장소 초대를 먼저 수락해줘: ${inv}"; exit 1; }; fi`,
-      `cd "${dir}" || exit 1`, 'echo "코드: $(pwd)"'] : []),
-    'if command -v claude >/dev/null; then claude mcp remove planboard -s local >/dev/null 2>&1',
-    `  claude mcp add --transport http planboard ${mcp} && echo "AI: 이 폴더에서 Claude Code를 열면 planboard 도구가 연결돼 있어."`,
-    'else echo "AI: Claude Code가 없어서 건너뛰었어. 다른 AI는 기획판의 \\"내 컴퓨터에 연결\\" 안내를 봐줘."; fi',
-    `printf '#!/bin/sh\\nopen "${base}/" 2>/dev/null || xdg-open "${base}/"\\n' > "$ROOT/${slug}-board.command" && chmod +x "$ROOT/${slug}-board.command"`,
-    `echo "기획판 바로가기: $ROOT/${slug}-board.command"`,
-    'echo "끝! 기획판으로 돌아가면, AI가 처음 기획판을 부를 때 연결됐다고 바뀌어."', ''].join('\n');
 }
 function page(slug) {
   const pre = `<script>window.PB_BASE='/b/${slug}';window.PB_WS=true;</script><script src="/b/${slug}/pb-local.js"></script>`;

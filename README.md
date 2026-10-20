@@ -25,7 +25,6 @@ You can run the same board page in two ways:
 | `seed-example.json` | Example starting data: project info, phases and a spec. |
 | `skills/planboard/` | Skill that teaches Claude to create, read and log to a board, in either mode. |
 | `skills/planboard-run-button/` | Skill for the claude.ai request button (cloud). Optional. |
-| `skills/planboard-hub/` | Skill for putting a project on a hub: board, modules and contracts, agent rules, CI claim check, GitHub invites. Templates in `templates/`. |
 | `button-server/` | Cloudflare Worker for the claude.ai request button and GitHub code map. Optional. |
 | `hub/` | **Planboard hub**: the board on Cloudflare with an MCP endpoint, so several people's AIs claim modules, get interface contracts and report progress live without stepping on each other. See `hub/README.md`. |
 

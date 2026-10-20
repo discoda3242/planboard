@@ -3,7 +3,6 @@
 //          npx wrangler secret put CI_KEY                (only if you use the GitHub Action claim check)
 //          npx wrangler secret put GITHUB_CLIENT_ID      (GitHub OAuth app — "Sign in with GitHub")
 //          npx wrangler secret put GITHUB_CLIENT_SECRET
-//          npx wrangler secret put GITHUB_REPO_TOKEN     (optional: fine-grained token, Administration read/write on your code repos — invites add repo collaborators)
 {
   "name": "planboard-hub",
   "main": "worker.js",
