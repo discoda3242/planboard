@@ -157,7 +157,7 @@ export class Hub {
     if (mineT.length) L.push(`내 할 일 ${mineT.length}${late ? ` (마감 지남 ${late})` : ''} — todo 도구로 보기`);
     const prs = (await this.list('prs')).filter((p) => p.data.release && !p.data.done && p.data.state !== 'closed');
     if (prs.length) L.push('PR: ' + prs.map((p) => `#${p.id} ${p.data.release.module} ${p.data.state === 'blocked' ? '막힘(' + clip((p.data.reasons || [])[0], 40) + ')' : '검사 중'}`).join(' · '));
-    L.push(`열린 코멘트 ${open.length}` + open.slice(0, 8).map((c) => `\n- ${c.id} [${c.data.phase || 'all'}] ${names[c.data.by] || '?'}: ${clip(c.data.text, 80)}`).join('') + (open.length > 8 ? `\n- …외 ${open.length - 8}개` : ''));
+    L.push(`열린 코멘트 ${open.length}` + open.slice(0, 8).map((c) => `\n- ${c.id} [${c.data.phase || 'all'}] ${c.data.byName || names[c.data.by] || '?'}: ${clip(c.data.text, 80)}`).join('') + (open.length > 8 ? `\n- …외 ${open.length - 8}개` : ''));
     const crq = (await this.list('crq')).filter((r) => !r.data.done);
     if (crq.length) L.push('연결부 변경 요청: ' + crq.map((r) => `${r.id} ${r.data.name} (${names[r.data.by] || '?'}: ${clip(r.data.reason, 40)})`).join(' · '));
     const memo = await this.get('notes', 'memo'), seenK = 'seen:' + me.id, seen = (await this.s.get(seenK)) || 0;
