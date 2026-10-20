@@ -142,6 +142,8 @@ export class Board {
         const b = await req.json(); let n = 0; for (const d of b.docs || []) { await this.hub.apiWrite(me, { op: 'set', path: d.col + '/' + d.id, data: d.data }); n++; }
         return json(200, { ok: true, n });
       }
+      if (p === '/api/team') return json(200, { team: (await this.hub.members()).filter((m) => !m.removed).map((m) => ({ id: m.id, name: m.name, github: m.github || '', role: m.role })) });
+      if (p === '/api/crq' && req.method === 'POST') { const b = await req.json(); return json(200, { ok: true, text: await this.hub.decideCrq(me, String(b.id || ''), !!b.ok) }); }
       if (p === '/api/people') { // admin: GitHub people to invite — search results for ?q=, else the admin's following + followers
         if (me.role !== 'admin') throw httpErr(403, 'admins only');
         return json(200, await this.people(me, (u.searchParams.get('q') || '').trim().slice(0, 60)));

@@ -201,4 +201,43 @@ resp = await f('/api/col?name=claimlog', { headers: { Cookie: 'pb_t=' + tok } })
   r = await M2({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'claim', arguments: { module: 'room', note: 'a', agent: 'Claude' } } }, sidA); assert.match((await r.json()).result.content[0].text, /잡았어/);
   r = await M2({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'claim', arguments: { module: 'room', note: 'b', agent: 'Claude' } } }, sidB); assert.match((await r.json()).result.content[0].text, /네 다른 AI 세션/);
 }
+// several modules under one claim · work requests (asks)
+{
+  const h = new Hub(memStore(), { now: () => T });
+  const o = await h.member((await h.addMember({ name: '지은', role: 'admin', owner: true, github: 'jieun' })).id);
+  const y = await h.member((await h.addMember({ name: '유삭', role: 'interact', github: 'yusak' })).id);
+  for (const [m, f, pr, rq] of [['room', 'src/room.js', ['room-save'], ['prize']], ['machine', 'src/machine.js', ['prize'], []], ['physics', 'src/physics.js', [], []]]) await h.put('modules', m, { files: [f], provides: pr, requires: rq });
+  await h.put('contracts', 'prize', { owner: 'machine', md: 'PRIZES[i]', v: 1 }); await h.put('contracts', 'room-save', { owner: 'room', md: 'D.room', v: 1 });
+  let r = await h.call(y, 'claim', { modules: ['room', 'machine'], note: '경품 가구', agent: 'Claude' });
+  assert.match(r, /잡았어: room, machine \(claim (\w+)/); const cid = r.match(/claim (\w+)/)[1];
+  assert.ok(r.includes('src/room.js') && r.includes('src/machine.js') && r.includes('### prize') && r.includes('### room-save'));
+  const cl = await h.claims(); assert.equal(cl.room.id, cid); assert.equal(cl.machine.id, cid);
+  assert.match(await h.call(y, 'digest'), /내가 잡은 것: (room, machine|machine, room) \(claim /);
+  assert.equal((await h.ciCheck({ files: ['src/room.js', 'src/machine.js'], branch: 'claim/' + cid, actor: 'yusak' })).ok, true, 'one claim id covers both modules in CI');
+  assert.equal((await h.ciCheck({ files: ['src/physics.js'], branch: 'claim/' + cid, actor: 'yusak' })).ok, false);
+  r = await h.call(o, 'claim', { modules: ['physics', 'machine'], note: 'x', agent: 'Gemini' }); assert.equal(r.error, true); assert.match(r.text, /machine/);
+  assert.equal((await h.claims()).physics, undefined, 'blocked claim takes nothing');
+  r = await h.call(y, 'claim', { module: 'physics', note: '추가', agent: 'Claude' }); assert.match(r, new RegExp('claim ' + cid), 'own claim extends');
+  await h.call(y, 'status', { module: 'physics', note: '거의 끝' }); assert.equal((await h.claims()).room.note, '거의 끝');
+  assert.match(await h.call(y, 'release', { module: 'room', summary: '끝', commit: 'https://github.com/o/r/pull/7' }), /풀었어: room, machine, physics|풀었어: (\w+, ){2}\w+/);
+  assert.deepEqual(await h.claims(), {}); const lg = (await h.list('log')).find((x) => x.data.pr); assert.equal(lg.data.pr, 'https://github.com/o/r/pull/7');
+  // asks: to me / to anyone show in my digest; to someone else does not
+  const a1 = await h.apiAdd(o, 'asks', { text: '소파 추가해줘', to: y.id, state: 'done', by: 'forged' });
+  const a2 = await h.apiAdd(o, 'asks', { text: '아무나 README 정리' }); await h.apiAdd(y, 'asks', { text: '지은 전용', to: o.id });
+  const A1 = await h.get('asks', a1); assert.equal(A1.state, 'open'); assert.equal(A1.by, o.id);
+  let d = await h.call(y, 'digest'); assert.ok(d.includes(a1) && d.includes(a2) && !d.includes('지은 전용')); assert.match(d, /작업 요청 2/);
+  await assert.rejects(h.apiWrite(y, { op: 'update', path: 'asks/' + a1, data: { state: 'done' } }), /상태는 AI/);
+  await assert.rejects(h.apiWrite(y, { op: 'delete', path: 'asks/' + a2 }), /not yours/);
+  r = await h.call(y, 'claim', { module: 'room', note: '소파', agent: 'Claude', ask: a1 }); const c2 = r.match(/claim (\w+)/)[1];
+  assert.equal((await h.get('asks', a1)).state, 'working'); assert.ok(!(await h.call(y, 'digest')).includes(a1));
+  await h.call(y, 'release', { module: 'room', summary: '소파 넣음', commit: 'https://github.com/o/r/pull/8' });
+  const D1 = await h.get('asks', a1); assert.equal(D1.state, 'done'); assert.equal(D1.reply, '소파 넣음'); assert.equal(D1.pr, 'https://github.com/o/r/pull/8'); assert.ok(c2);
+  await h.call(y, 'reply', { comment: a2, text: '정리할 게 없어' }); assert.equal((await h.get('asks', a2)).state, 'done');
+  // an expired claim puts its request back in the queue
+  const a3 = await h.apiAdd(o, 'asks', { text: '물리 튜닝', to: y.id }); await h.call(y, 'claim', { module: 'physics', note: 't', agent: 'Claude', ask: a3 });
+  T += (LEASE_MIN + 1) * 6e4; await h.expire(); const A3 = await h.get('asks', a3); assert.equal(A3.state, 'open'); assert.equal(A3.claim, '');
+  // contract change requests can be dismissed from the page
+  await h.call(y, 'contract', { name: 'prize', propose: 'new', reason: 'r' }); const q = (await h.list('crq'))[0];
+  await assert.rejects(h.decideCrq(y, q.id, false), /관리자만/); assert.match(await h.decideCrq(o, q.id, false), /거절/); assert.equal((await h.get('crq', q.id)).dismissed, true);
+}
 console.log('hub tests passed');

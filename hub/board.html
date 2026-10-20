@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>기획판</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Planboard hub page: the board for people and their AIs. Every word comes from the board's data (hub API). */
+:root{
+  --bg:#f6f4fb;--panel:#ffffff;--fg:#1d1a2e;--dim:#615c7a;--line:#dcd7ea;--chip:#efeaf8;
+  --accent:#d6336c;--amber:#b86e00;--mint:#0f8a68;--blue:#3b5bdb;
+  --f-disp:"DotGothic16","IBM Plex Sans KR",monospace;--f-body:"IBM Plex Sans KR",system-ui,sans-serif;--f-mono:ui-monospace,"SFMono-Regular",Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#120f1f;--panel:#1b1730;--fg:#ece8f8;--dim:#a49ec0;--line:#2e2949;--chip:#251f40;--accent:#ff5c8a;--amber:#ffb547;--mint:#5ee3b5;--blue:#91a7ff;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#120f1f;--panel:#1b1730;--fg:#ece8f8;--dim:#a49ec0;--line:#2e2949;--chip:#251f40;--accent:#ff5c8a;--amber:#ffb547;--mint:#5ee3b5;--blue:#91a7ff;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 var(--f-body)}
+.wrap{max-width:1040px;margin:0 auto;padding:24px max(16px,env(safe-area-inset-right,0px)) 72px max(16px,env(safe-area-inset-left,0px))}
+.narrow{max-width:820px}
+a{color:inherit}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:8px 14px;border-radius:10px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-weight:600;text-decoration:none;cursor:pointer;white-space:nowrap}
+.btn.ghost{background:transparent;color:var(--fg);border-color:var(--line)}
+.btn.sm{min-height:32px;padding:4px 10px;font-size:13px;font-weight:500}
+.btn:disabled{opacity:.5;cursor:default}
+.dim{color:var(--dim)}small{font-size:12px}
+.empty{color:var(--dim);font-size:14px;padding:10px 0}
+
+/* header */
+header.top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.eyebrow{font-family:var(--f-disp);color:var(--accent);letter-spacing:.08em;font-size:13px}
+h1{font-family:var(--f-disp);font-weight:400;font-size:clamp(28px,5vw,40px);line-height:1.15;margin:2px 0 6px;text-wrap:balance}
+.lead{color:var(--dim);margin:0;max-width:64ch}
+.links{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.who-me{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.me{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--dim)}
+.av{width:28px;height:28px;border-radius:50%;flex:none;background:var(--chip);display:inline-grid;place-items:center;font-size:12px;font-weight:700;color:var(--dim);overflow:hidden}
+.av img{width:100%;height:100%;display:block}
+
+/* tabs */
+nav.tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;background:var(--bg);padding:8px 0;margin-bottom:18px;border-bottom:1px solid var(--line)}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs button{flex:none;min-height:40px;padding:6px 14px;border-radius:999px;border:1px solid transparent;background:transparent;color:var(--dim);font-weight:500;cursor:pointer}
+nav.tabs button.on{background:var(--fg);color:var(--bg)}
+.cnt{display:inline-block;min-width:18px;margin-left:4px;padding:0 5px;border-radius:999px;background:var(--accent);color:#fff;font-size:11px;line-height:18px;text-align:center}
+.cnt:empty{display:none}
+
+/* sections + cards */
+section.view[hidden]{display:none}
+h2{font-size:18px;margin:0 0 10px;text-wrap:balance}
+h3{font-size:12px;letter-spacing:.06em;color:var(--dim);margin:0 0 8px;font-weight:700}
+.block{margin-bottom:28px}
+.block-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.block-head h2{margin:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(230px,100%),1fr));gap:10px}
+.split{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:16px}
+@media (max-width:760px){.split{grid-template-columns:1fr}}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:1px 9px;border-radius:999px;background:var(--chip);color:var(--dim);white-space:nowrap}
+.chip.work{color:var(--accent)}.chip.review{color:var(--amber)}.chip.done{color:var(--mint)}.chip.open{color:var(--blue)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--line);flex:none;display:inline-block}
+.dot.on{background:var(--accent);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}@media (prefers-reduced-motion:reduce){.dot.on{animation:none}}
+
+/* now: one card per module */
+.mod{display:flex;flex-direction:column;gap:6px}
+.mod.busy{border-color:var(--accent)}
+.mod-top{display:flex;align-items:center;gap:8px}.mod-top b{font-size:15px;overflow-wrap:anywhere}
+.mod .holder{display:flex;align-items:center;gap:8px;font-size:14px}
+.mod .note{font-size:14px;overflow-wrap:anywhere}
+.mod .meta{font-size:12px;color:var(--dim)}
+.mod.free .holder{color:var(--dim)}
+
+/* asks */
+.ask-form{display:grid;gap:8px}
+.ask-form textarea,.compose textarea,#memoText{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 12px;resize:vertical}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row .grow{flex:1;min-width:0}
+select{min-height:40px;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:6px 10px;max-width:100%}
+.list{display:flex;flex-direction:column;gap:8px}
+.ask{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:6px;background:var(--panel)}
+.ask-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--dim)}
+.ask-head b{color:var(--fg)}
+.ask-text{white-space:pre-wrap;overflow-wrap:anywhere}
+.answer{border-left:3px solid var(--mint);padding:4px 10px;font-size:14px;background:var(--chip);border-radius:0 8px 8px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.x{margin-left:auto;border:0;background:none;color:var(--dim);cursor:pointer;font-size:12px;padding:4px 6px}
+.x.armed{color:var(--accent)}
+
+/* activity */
+.act{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.act:last-child{border-bottom:0}
+.act .t{font-size:12px;color:var(--dim);white-space:nowrap;padding-top:2px}
+.act .body{min-width:0;display:grid;gap:2px}
+.act .body .what{overflow-wrap:anywhere}
+.act .body .meta{font-size:12px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* roadmap */
+.rail{position:relative;display:flex;flex-direction:column;gap:18px}
+.rail::before{content:"";position:absolute;left:19px;top:8px;bottom:8px;width:2px;background:var(--line)}
+.phase{display:grid;grid-template-columns:40px minmax(0,1fr);gap:14px}
+.coin{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-family:var(--f-disp);font-size:17px;background:var(--panel);border:2px solid var(--line);position:relative;z-index:1}
+.phase.done .coin{background:var(--mint);border-color:var(--mint);color:var(--bg)}
+.phase.next .coin,.phase.working .coin{border-color:var(--accent);color:var(--accent)}
+.phase.next .card,.phase.working .card{border-color:var(--accent)}
+.ph-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.ph-top h2{margin:0}
+.goal{margin:6px 0 10px;color:var(--dim)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:4px 14px}
+ul.todo{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+ul.todo li{font-size:14px}
+.p-tag{font-size:11px;padding:0 6px;border-radius:6px;margin-left:4px;border:1px solid currentColor;opacity:.85;white-space:nowrap}
+.doneline{margin-top:10px;padding:8px 12px;border-radius:10px;background:var(--chip);font-size:14px}
+.decide{margin-top:8px;font-size:13px;color:var(--dim)}.decide b{color:var(--amber)}
+.wstate{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;margin:4px 0 8px;padding:6px 10px;border-radius:8px;background:var(--chip)}
+.wstate b{color:var(--accent)}.wstate.review b{color:var(--amber)}
+.pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr));gap:8px;margin-bottom:16px}
+.pillar{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.pillar b{display:block}.pillar span{color:var(--dim);font-size:13px}
+
+/* spec */
+.spec{margin-bottom:12px}
+.spec p{margin:6px 0}.spec .rule{border-left:3px solid var(--accent);padding:4px 10px;background:var(--chip);border-radius:0 8px 8px 0}
+.spec .small{font-size:13px;color:var(--dim)}.spec h4{font-size:15px;margin:14px 0 4px}
+.tbl{overflow-x:auto;margin:8px 0}table{border-collapse:collapse;font-size:14px;min-width:100%}th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{background:var(--chip)}
+
+/* comment threads */
+.tbar{margin-top:12px;border-top:1px dashed var(--line);padding-top:8px}
+.tbtn{border:0;background:none;color:var(--dim);cursor:pointer;font-size:13px;padding:4px 0}
+.thread{display:grid;gap:10px;margin-top:8px}
+.cm{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px}
+.cm-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--dim)}.cm-head b{color:var(--fg)}
+.cm-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}
+.compose{display:grid;gap:6px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;width:max-content}
+.seg button{border:0;background:transparent;padding:4px 12px;font-size:13px;cursor:pointer;color:var(--dim)}
+.seg button.on{background:var(--fg);color:var(--bg)}
+.recent a{display:block;text-decoration:none;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;overflow-wrap:anywhere}
+.recent a small{display:block;color:var(--dim)}
+
+/* modules view */
+.files{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}
+code,.files code{font-family:var(--f-mono);font-size:12px;background:var(--chip);padding:1px 6px;border-radius:6px;overflow-wrap:anywhere}
+.links-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--dim)}
+.links-row a{text-decoration:none}
+pre.md{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.55 var(--f-mono);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0 0;max-height:200px;overflow:auto}
+details summary{cursor:pointer;color:var(--dim);font-size:13px}
+
+/* map */
+.map-wrap{overflow-x:auto;margin-top:10px}
+.pm-node{cursor:pointer}.pm-node text{fill:var(--fg)}
+.pm-node:focus{outline:none}.pm-node:focus-visible rect{stroke:var(--accent);stroke-width:2}
+.legend{display:flex;gap:12px;flex-wrap:wrap;color:var(--dim);font-size:13px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+
+#memoText{min-height:320px;font-size:15px}
+.banner{padding:8px 12px;border-radius:10px;background:var(--chip);font-size:14px;margin-bottom:8px}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:10px;font-size:14px;z-index:60;max-width:calc(100vw - 32px)}
+footer{margin-top:40px;color:var(--dim);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow" id="eyebrow">PLAN BOARD</div>
+      <h1 id="title">기획판</h1>
+      <p class="lead" id="lead"></p>
+      <div class="links" id="links"></div>
+    </div>
+    <div class="who-me"><div id="pb-share"></div><div class="me" id="me"></div></div>
+  </header>
+  <div id="pb-setup"></div>
+
+  <nav class="tabs" id="tabs" aria-label="보기">
+    <button data-v="now" class="on">현황 <span class="cnt" id="cntNow"></span></button>
+    <button data-v="road">로드맵</button>
+    <button data-v="spec" id="tab-spec">상세 설계</button>
+    <button data-v="mods">모듈 <span class="cnt" id="cntCrq"></span></button>
+    <button data-v="talk">코멘트 <span class="cnt" id="cntTalk"></span></button>
+    <button data-v="memo">메모장</button>
+    <button data-v="act">활동</button>
+  </nav>
+
+  <!-- 현황 -->
+  <section class="view" id="v-now">
+    <div class="block">
+      <div class="block-head"><h2>지금 작업</h2><span class="dim" id="nowSum"></span></div>
+      <div class="grid" id="nowGrid"></div>
+    </div>
+    <div class="split">
+      <div class="block">
+        <div class="block-head"><h2>작업 요청</h2><span class="dim" style="font-size:13px">받는 사람의 AI가 다음 작업 때 확인해</span></div>
+        <div class="card ask-form" id="askForm">
+          <textarea id="askText" rows="3" placeholder="예: 방 꾸미기에 소파 가구 추가해줘 / 경품 공방 저장 버그 봐줘" aria-label="요청 내용"></textarea>
+          <div class="row"><label class="dim" for="askTo" style="font-size:13px">받는 AI</label><select id="askTo" class="grow"></select><button class="btn" id="askGo" type="button" disabled>요청 보내기</button></div>
+        </div>
+        <div class="list" id="askList" style="margin-top:10px"></div>
+      </div>
+      <div class="block">
+        <div class="block-head"><h2>최근 활동</h2><button class="btn ghost sm" type="button" data-go="act">전체</button></div>
+        <div class="card" id="recentAct"></div>
+        <div class="card" style="margin-top:10px" id="nowSide"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 로드맵 -->
+  <section class="view narrow" id="v-road" hidden>
+    <div class="pillars" id="pillars" hidden></div>
+    <details class="card block" id="mapBox"><summary>기획 구조도 (단계 → 할 일 → 상세 설계)</summary>
+      <p class="dim" style="font-size:13px;margin:8px 0 0">색 = 기둥. 점선은 할 일·단계 글에 설계 이름이 나오거나 <code>[[s3]]</code>처럼 적은 연결. 누르면 해당 카드로 이동해.</p>
+      <div class="legend" id="mapLegend" style="margin-top:8px"></div>
+      <div class="map-wrap"><svg id="planMap" role="img" aria-label="기획 구조 그래프"></svg></div>
+    </details>
+    <div class="rail" id="rail"></div>
+    <div class="empty" id="emptyRoad" hidden>아직 로드맵 단계가 없어. AI에게 "기획판 채워줘"라고 하면 넣어줘.</div>
+  </section>
+
+  <!-- 상세 설계 -->
+  <section class="view narrow" id="v-spec" hidden>
+    <div id="specList"></div>
+    <div class="empty" id="emptySpec" hidden>아직 상세 설계가 없어.</div>
+  </section>
+
+  <!-- 모듈 -->
+  <section class="view" id="v-mods" hidden>
+    <div class="block" id="crqBlock" hidden>
+      <div class="block-head"><h2>연결부 변경 요청</h2><span class="dim" style="font-size:13px">제공 모듈을 잡은 사람이나 관리자가 정해</span></div>
+      <div class="list" id="crqList"></div>
+    </div>
+    <div class="block">
+      <div class="block-head"><h2>모듈</h2><span class="dim" style="font-size:13px">AI는 모듈 단위로 작업을 잡고, 그 파일만 고쳐</span></div>
+      <div class="grid" id="modGrid"></div>
+    </div>
+    <div class="block">
+      <div class="block-head"><h2>연결부</h2><span class="dim" style="font-size:13px">모듈끼리 약속한 규격. AI는 다른 모듈 코드 대신 이걸 보고 작업해</span></div>
+      <div class="list" id="conList"></div>
+    </div>
+  </section>
+
+  <!-- 코멘트 -->
+  <section class="view narrow" id="v-talk" hidden>
+    <div class="card block" data-thread="all">
+      <h2>전체 코멘트</h2>
+      <p class="goal" style="margin-top:0">특정 단계에 안 맞는 이야기, 방향 전체에 대한 의견은 여기에.</p>
+    </div>
+    <div class="card recent"><h3>단계·설계에 달린 최근 코멘트</h3><div id="recentTalk"></div></div>
+  </section>
+
+  <!-- 메모장 -->
+  <section class="view narrow" id="v-memo" hidden>
+    <div class="card">
+      <div class="block-head"><h2>메모장</h2><span class="chip" id="memoState">불러오는 중</span></div>
+      <p class="goal" style="margin-top:0">같이 쓰는 자유 메모. 쓰는 중에 저절로 저장돼.</p>
+      <div class="banner" id="memoBanner" hidden>다른 사람이 메모를 바꿨어. <button class="btn ghost sm" id="memoLoad" type="button">최신으로 불러오기</button></div>
+      <textarea id="memoText" placeholder="아이디어, 할 일, 링크… 자유롭게 적어줘" aria-label="메모"></textarea>
+    </div>
+  </section>
+
+  <!-- 활동 -->
+  <section class="view narrow" id="v-act" hidden>
+    <div class="card" id="actList"></div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>window.PB_HUBPAGE = true;</script>
+<script>
+(function(){
+const $ = (id) => document.getElementById(id);
+// h('div', {class:'x', text:'…', onclick}, ...children) — data always goes in as text, never as HTML
+function h(tag, a, ...kids){
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(a || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v; else if (k === 'text') e.textContent = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else if (k in e && k !== 'list') e[k] = v; else e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return e;
+}
+// inline **bold** only
+function rich(t){const f=document.createDocumentFragment();String(t||'').split(/(\*\*[^*]+\*\*)/).forEach(p=>{if(/^\*\*[^*]+\*\*$/.test(p))f.append(h('b',{text:p.slice(2,-2)}));else if(p)f.append(p);});return f;}
+const S = { me:null, team:{}, info:null, items:[], comments:[], replies:{}, log:[], claims:{}, modules:[], free:[], contracts:[], crq:[], asks:[], memo:null, memoDirty:false, open:{}, kind:{}, draft:{}, tab:'now', db:null };
+const B = window.PB_BASE || '';
+async function api(path, method, body){
+  const r = await fetch(B + path, { method: method || 'GET', credentials:'same-origin', headers:{'Content-Type':'application/json','X-PB':'1'}, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j;
+}
+let toastT = 0;
+function toast(t){let n=$('toast');if(!n){n=h('div',{class:'toast',id:'toast',role:'status'});document.body.append(n);}n.textContent=t;n.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{n.hidden=true;},3500);}
+const canWrite = () => !!S.me && S.me.role !== 'view';
+const isAdmin = () => !!S.me && S.me.role === 'admin';
+const ROLE = { admin:'관리자', interact:'개발·코멘트', view:'보기' };
+
+// ---------- time ----------
+const hhmm = (t) => { const d = new Date(t); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); };
+function ago(t){ if(!t) return ''; const m = Math.round((Date.now()-t)/6e4); if(m<1) return '방금'; if(m<60) return m+'분 전'; if(m<1440) return Math.round(m/60)+'시간 전'; const d=new Date(t); return (d.getMonth()+1)+'/'+d.getDate(); }
+
+// ---------- people ----------
+const person = (id) => S.team[id] || null;
+const nameOf = (id) => (person(id) && person(id).name) || (S.me && id === S.me.id ? '나' : '누군가');
+function avatar(id, name){
+  const p = person(id), n = (p && p.name) || name || '?';
+  const a = h('span', { class:'av', 'aria-hidden':'true' });
+  if (p && p.github) { const img = h('img', { alt:'', loading:'lazy', src:'https://github.com/' + encodeURIComponent(p.github) + '.png?size=56' }); img.onerror = () => { a.replaceChildren(n.slice(0,1)); }; a.append(img); }
+  else a.append(n.slice(0,1));
+  return a;
+}
+
+// ---------- tabs ----------
+const VIEWS = ['now','road','spec','mods','talk','memo','act'];
+function show(v){ if(!VIEWS.includes(v)) v='now'; S.tab=v; for(const k of VIEWS) $('v-'+k).hidden = k!==v;
+  document.querySelectorAll('#tabs button').forEach(b => { b.classList.toggle('on', b.dataset.v===v); b.setAttribute('aria-current', b.dataset.v===v ? 'page' : 'false'); });
+  try{ localStorage.setItem('pb-hub-tab:'+B, v); }catch(e){}
+}
+document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => { show(b.dataset.v); window.scrollTo({top:0}); }));
+document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => { show(b.dataset.go); window.scrollTo({top:0}); }));
+// ?tab=mods opens a tab directly (shareable); otherwise the tab you had open last time
+try{ const q = new URLSearchParams(location.search).get('tab'), t = q || localStorage.getItem('pb-hub-tab:'+B); if(t) show(t); }catch(e){}
+
+// ---------- header ----------
+function renderInfo(){
+  const i = S.info || {};
+  const title = i.title || i.project || '기획판';
+  document.title = title + ' 기획판'; $('title').textContent = title; $('eyebrow').textContent = i.eyebrow || 'PLAN BOARD'; $('lead').textContent = i.lead || '';
+  $('links').replaceChildren(...(i.links || []).filter(l => /^https:\/\//.test(l.url || '')).map((l, k) => h('a', { class: k ? 'btn ghost sm' : 'btn sm', href:l.url, target:'_blank', rel:'noopener', text:l.label + ' ↗' })));
+  const tags = i.tags || []; $('pillars').hidden = !tags.length;
+  $('pillars').replaceChildren(...tags.map(t => { const b = h('b', { text:t.label }); b.style.color = tagColor(t.color); return h('div', { class:'pillar' }, b, t.desc ? h('span', { text:t.desc }) : null); }));
+  $('footer').textContent = i.footer || '';
+  renderMap();
+}
+function renderMe(){
+  if (!S.me) return; $('me').replaceChildren(avatar(S.me.id, S.me.name), h('span', null, h('b', { text:S.me.name, style:'color:var(--fg)' }), ' · ' + (ROLE[S.me.role] || S.me.role)));
+  $('askForm').hidden = !canWrite();
+}
+
+// ---------- claims ----------
+const live = () => { const t = Date.now(), out = {}; for (const [k, c] of Object.entries(S.claims)) if (c.until > t) out[k] = c; return out; };
+function renderNow(){
+  const cl = live(), mods = S.modules;
+  const busy = Object.keys(cl).length;
+  $('nowSum').textContent = mods.length ? (busy ? `작업 중 ${busy} · 모듈 ${mods.length}` : `모듈 ${mods.length} · 모두 비어 있음`) : '';
+  if (!mods.length) { $('nowGrid').replaceChildren(h('div', { class:'empty', text:'아직 모듈이 없어. 관리자가 모듈과 연결부를 넣으면 여기서 누가 어디를 작업하는지 보여.' })); return; }
+  $('nowGrid').replaceChildren(...mods.map(m => {
+    const c = cl[m.id];
+    if (!c) return h('div', { class:'card mod free' }, h('div', { class:'mod-top' }, h('span', { class:'dot' }), h('b', { text:m.id })), h('div', { class:'holder', text:'비어 있음' }), m.note ? h('div', { class:'meta', text:m.note }) : null);
+    const with_ = (c.modules || []).filter(x => x !== m.id);
+    const left = Math.max(0, Math.round((c.until - Date.now()) / 6e4));
+    const ask = c.id && S.asks.find(a => a.claim === c.id && a.state === 'working');
+    return h('div', { class:'card mod busy' },
+      h('div', { class:'mod-top' }, h('span', { class:'dot on' }), h('b', { text:m.id }), with_.length ? h('span', { class:'chip', text:'+ ' + with_.join(', ') }) : null),
+      h('div', { class:'holder' }, avatar(c.by, c.name), h('span', null, h('b', { text:c.name }), c.agent ? ' · ' + c.agent : '')),
+      c.note ? h('div', { class:'note', text:c.note }) : null,
+      ask ? h('div', { class:'meta', text:'요청 처리 중: ' + clip(ask.text, 60) }) : null,
+      h('div', { class:'meta', text:`${hhmm(c.since)}부터 · ${left}분 뒤 자동 해제${c.task ? ' · ' + c.task : ''}` }));
+  }));
+}
+
+// ---------- asks (work requests to an AI) ----------
+function renderAskTo(){
+  const sel = $('askTo'), keep = sel.dataset.picked ? sel.value : null; const opts = [];
+  if (S.me) opts.push(h('option', { value:S.me.id, text:'내 AI' }));
+  for (const p of Object.values(S.team).sort((a,b) => a.name.localeCompare(b.name))) if (!S.me || p.id !== S.me.id) if (p.role !== 'view') opts.push(h('option', { value:p.id, text:p.name + '의 AI' }));
+  opts.push(h('option', { value:'', text:'아무 AI나 (먼저 보는 사람)' }));
+  sel.replaceChildren(...opts); if (keep != null && [...sel.options].some(o => o.value === keep)) sel.value = keep; // default: my own AI
+}
+$('askText').addEventListener('input', () => { $('askGo').disabled = !$('askText').value.trim(); });
+$('askTo').addEventListener('change', () => { $('askTo').dataset.picked = '1'; });
+$('askGo').addEventListener('click', async () => {
+  const text = $('askText').value.trim(); if (!text || !S.db) return; $('askGo').disabled = true;
+  try { await S.db.collection('asks').add({ text, to: $('askTo').value }); $('askText').value = ''; toast('요청을 보냈어. 받는 AI가 다음 작업을 시작할 때 보여.'); }
+  catch (e) { toast('보내지 못했어: ' + e.message); $('askGo').disabled = false; }
+});
+const ASK_ST = { open:['대기','open'], working:['작업 중','work'], done:['완료','done'] };
+function renderAsks(){
+  const order = { working:0, open:1, done:2 };
+  const L = S.asks.slice().sort((a,b) => (order[a.state] ?? 3) - (order[b.state] ?? 3) || (b.at||0) - (a.at||0)).slice(0, 30);
+  const mine = S.me ? S.asks.filter(a => a.state === 'open' && (!a.to || a.to === S.me.id)).length : 0;
+  $('cntNow').textContent = mine || '';
+  if (!L.length) { $('askList').replaceChildren(h('div', { class:'empty', text:'아직 요청이 없어. AI에게 맡길 일을 적어 보내면, 받는 사람의 AI가 작업을 시작할 때 이 요청을 보고 처리해.' })); return; }
+  $('askList').replaceChildren(...L.map(a => {
+    const [lab, cls] = ASK_ST[a.state] || [a.state, ''];
+    const head = h('div', { class:'ask-head' }, h('b', { text:nameOf(a.by) }), '→ ' + (a.to ? nameOf(a.to) + '의 AI' : '아무 AI'), h('span', { class:'chip ' + cls, text:lab }), h('span', { text:ago(a.at) }));
+    if (S.me && a.state !== 'working' && (a.by === S.me.id || isAdmin())) head.append(armed('삭제', '한 번 더 누르면 삭제', async () => { try { await S.db.doc('asks/' + a.id).delete(); } catch (e) { toast('지우지 못했어'); } }));
+    const box = h('div', { class:'ask' }, head, h('div', { class:'ask-text', text:a.text }));
+    if (a.state === 'working') box.append(h('div', { class:'dim', style:'font-size:13px', text:(a.workerName || '') + '의 AI가 작업 중' }));
+    if (a.note && a.state === 'open') box.append(h('div', { class:'dim', style:'font-size:13px', text:a.note }));
+    if (a.reply) box.append(h('div', { class:'answer' }, h('b', { text:(a.workerName || 'AI') + ' · ' }), a.reply));
+    if (a.pr && /^https:\/\//.test(a.pr)) box.append(h('a', { href:a.pr, target:'_blank', rel:'noopener', class:'dim', style:'font-size:13px', text:'PR 보기 ↗' }));
+    return box;
+  }));
+}
+function armed(label, confirmLabel, fn){
+  const b = h('button', { class:'x', type:'button', text:label });
+  b.addEventListener('click', () => { if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = confirmLabel; setTimeout(() => { b.classList.remove('armed'); b.textContent = label; }, 3000); return; } fn(); });
+  return b;
+}
+
+// ---------- activity (log written by the hub on claim / status / release) ----------
+const LOG_ST = { working:['작업 중','work'], review:['확인 부탁','review'], done:['완료','done'] };
+function actRow(e){
+  const [lab, cls] = LOG_ST[e.state] || [e.state || '', ''];
+  const meta = h('div', { class:'meta' }, lab ? h('span', { class:'chip ' + cls, text:lab }) : null, e.module ? h('span', { text:'모듈 ' + String(e.module).split(',').join(', ') }) : null, e.phase ? h('span', { text:label(e.phase) }) : null);
+  if (e.pr && /^https:\/\//.test(e.pr)) meta.append(h('a', { href:e.pr, target:'_blank', rel:'noopener', text:'PR ↗' }));
+  const what = e.text && e.state !== 'working' ? e.text : (e.note || e.text || '');
+  return h('div', { class:'act' }, h('div', { class:'t', text:ago(e.at) }), h('div', { class:'body' }, h('div', { class:'what' }, rich(what)), e.text && e.note && e.state !== 'working' ? h('div', { class:'dim', style:'font-size:12px', text:e.note }) : null, meta));
+}
+function renderActivity(){
+  const L = S.log.filter(e => e.text || e.note).sort((a,b) => (b.at||0) - (a.at||0));
+  $('actList').replaceChildren(...(L.length ? L.slice(0, 80).map(actRow) : [h('div', { class:'empty', text:'아직 작업 기록이 없어. AI가 모듈을 잡고 끝낼 때마다 여기 쌓여.' })]));
+  $('recentAct').replaceChildren(...(L.length ? L.slice(0, 5).map(actRow) : [h('div', { class:'empty', text:'아직 없어.' })]));
+}
+function renderSide(){
+  const open = S.comments.filter(c => !isDone(c)).length, crq = S.crq.filter(r => !r.done).length;
+  const next = S.items.filter(x => x.type === 'phase').sort((a,b) => (a.order||0) - (b.order||0)).find(x => x.state === 'next');
+  const row = (k, v, go) => h('button', { class:'btn ghost', type:'button', style:'width:100%;justify-content:space-between;margin-bottom:6px', onclick:() => { show(go); window.scrollTo({top:0}); } }, h('span', { text:k }), h('b', { text:v }));
+  $('nowSide').replaceChildren(h('h3', { text:'한눈에' }), row('열린 코멘트', String(open), 'talk'), row('연결부 변경 요청', String(crq), 'mods'), next ? row('다음 단계', (next.num != null ? next.num + ' · ' : '') + next.title, 'road') : null);
+}
+
+// ---------- plan items: markdown bodies ----------
+// phase: plain lines = goal · "- text #tag" = to-do · "완료: …" = done line · "? …" = to decide
+// spec:  "- " list · "> " callout · "| a | b |" table · "※ " small note · "## " subheading · other lines = paragraph
+function parsePhase(md){const o={goal:'',todo:[],done:'',decide:[]},g=[];
+  for(const raw of String(md).split('\n')){const l=raw.trim();let m;if(!l)continue;
+    if((m=l.match(/^[-*]\s+(.*)$/))){let t=m[1],tag=null;const k=t.match(/\s#([A-Za-z0-9_-]+)$/);if(k){tag=k[1];t=t.slice(0,k.index);}o.todo.push(tag?{text:t,tag}:{text:t});}
+    else if((m=l.match(/^(완료|끝 기준|done)\s*[:：]\s*(.*)$/i)))o.done=m[2];
+    else if((m=l.match(/^\?\s*(.*)$/)))o.decide.push(m[1]);else g.push(l);}
+  o.goal=g.join(' ');return o;}
+function parseSpec(md){const B_=[];let ul=null,tb=null,para=[];const endPara=()=>{if(para.length){B_.push({t:'p',text:para.join(' ')});para=[];}};
+  for(const raw of String(md).split('\n')){const l=raw.trim();let m;
+    if(!l){endPara();ul=tb=null;continue;}
+    if((m=l.match(/^[-*]\s+(.*)$/))){endPara();tb=null;if(!ul){ul={t:'ul',items:[]};B_.push(ul);}ul.items.push(m[1]);continue;}
+    if(/^\|.*\|$/.test(l)){endPara();ul=null;const cells=l.slice(1,-1).split('|').map(x=>x.trim());if(cells.every(x=>/^:?-{2,}:?$/.test(x)))continue;if(!tb){tb={t:'table',rows:[]};B_.push(tb);}tb.rows.push(cells);continue;}
+    ul=tb=null;
+    if((m=l.match(/^>\s?(.*)$/))){endPara();B_.push({t:'rule',text:m[1]});}
+    else if((m=l.match(/^※\s?(.*)$/))){endPara();B_.push({t:'small',text:m[1]});}
+    else if((m=l.match(/^#{1,6}\s+(.*)$/))){endPara();B_.push({t:'h',text:m[1]});}
+    else para.push(l);}
+  endPara();return B_;}
+function normItem(it){ if(typeof it.md!=='string') return it; return Object.assign({}, it, it.type==='phase' ? parsePhase(it.md) : { blocks:parseSpec(it.md) }); }
+const TAGC = { accent:'var(--accent)', amber:'var(--amber)', mint:'var(--mint)', dim:'var(--dim)' };
+const tagColor = (c) => TAGC[c] || (/^#[0-9a-f]{3,8}$/i.test(c || '') ? c : 'var(--dim)');
+function label(id){ if(id==='all') return '전체'; const it = S.items.find(x => x.id === id); if(!it) return id; return (it.type==='phase' ? (it.num != null ? it.num + ' · ' : '') : '설계 · ') + it.title; }
+function todoList(items){ const ul = h('ul', { class:'todo' }); for (const x of items) { const tags = (S.info && S.info.tags) || [], t = x.tag && tags.find(y => y.id === x.tag); const li = h('li', null, rich(x.text + (x.tag && !t ? ' #' + x.tag : ''))); if (t) { const s = h('span', { class:'p-tag', text:t.label }); s.style.color = tagColor(t.color); li.append(s); } ul.append(li); } return ul; }
+
+// work state per plan item: a live claim whose task is this item, else the latest logged state
+function itemState(id){
+  const c = Object.values(live()).find(x => x.task === id);
+  if (c) return { state:'working', note:`${c.name}${c.agent ? ' · ' + c.agent : ''} — ${c.note || ''}`, at:c.since };
+  const ev = S.log.filter(e => e.phase === id && e.state).sort((a,b) => (b.at||0) - (a.at||0))[0];
+  return ev && ev.state === 'review' ? { state:'review', note:ev.text || ev.note || '', at:ev.at } : null;
+}
+function wstate(id){ const s = itemState(id); if (!s) return null; return h('div', { class:'wstate ' + s.state }, s.state === 'working' ? h('span', { class:'dot on' }) : null, h('b', { text:s.state === 'working' ? 'AI 작업 중' : '확인 부탁' }), s.note ? ' · ' + clip(s.note, 120) : '', s.at ? h('small', { class:'dim', text:' ' + ago(s.at) }) : null); }
+
+function phaseCard(it){
+  const st = itemState(it.id);
+  const sec = h('section', { class:'phase' + (it.state ? ' ' + it.state : '') + (st && st.state === 'working' ? ' working' : '') });
+  sec.append(h('div', { class:'coin', text:it.num != null ? String(it.num) : '·' }));
+  const c = h('div', { class:'card', id:it.id });
+  c.append(h('div', { class:'ph-top' }, h('h2', { text:it.title }), it.badge ? h('span', { class:'chip', text:it.badge }) : null));
+  c.append(h('p', { class:'goal' }, rich(it.goal || '')));
+  const w = wstate(it.id); if (w) c.append(w);
+  const todo = it.todo || []; if (todo.length) { const half = Math.ceil(todo.length / 2); c.append(h('h3', { text:'할 일' }), h('div', { class:'cols' }, todoList(todo.slice(0, half)), todo.length > 1 ? todoList(todo.slice(half)) : null)); }
+  if (it.done) c.append(h('div', { class:'doneline' }, h('b', { text:'끝 기준' }), ' · ', rich(it.done)));
+  if (it.decide && it.decide.length) c.append(h('p', { class:'decide' }, h('b', { text:'정할 것' }), ' · ' + it.decide.join(' · ')));
+  c.append(threadFor(it.id));
+  sec.append(c); return sec;
+}
+function specCard(it){
+  const c = h('div', { class:'card spec', id:it.id }, h('h2', { text:it.title }));
+  const w = wstate(it.id); if (w) c.append(w);
+  for (const bl of it.blocks || []) {
+    if (bl.t === 'p') c.append(h('p', null, rich(bl.text)));
+    else if (bl.t === 'h') c.append(h('h4', null, rich(bl.text)));
+    else if (bl.t === 'rule') c.append(h('p', { class:'rule' }, rich(bl.text)));
+    else if (bl.t === 'small') c.append(h('p', { class:'small' }, rich(bl.text)));
+    else if (bl.t === 'ul') c.append(h('ul', { class:'todo' }, ...bl.items.map(x => h('li', null, rich(x)))));
+    else if (bl.t === 'table') { const tb = h('table'); bl.rows.forEach((r, k) => { const tr = h('tr', null, ...r.map(cell => h(k === 0 ? 'th' : 'td', null, rich(cell)))); (k === 0 ? (tb.tHead || tb.createTHead()) : (tb.tBodies[0] || tb.createTBody())).append(tr); }); c.append(h('div', { class:'tbl' }, tb)); }
+  }
+  c.append(threadFor(it.id));
+  return c;
+}
+function renderItems(){
+  keepFocus(() => {
+    const ph = S.items.filter(x => x.type === 'phase').sort((a,b) => (a.order||0) - (b.order||0)), sp = S.items.filter(x => x.type === 'spec').sort((a,b) => (a.order||0) - (b.order||0));
+    $('rail').replaceChildren(...ph.map(phaseCard)); $('specList').replaceChildren(...sp.map(specCard));
+    $('emptyRoad').hidden = !!ph.length; $('emptySpec').hidden = !!sp.length; $('tab-spec').hidden = !sp.length && !!S.items.length;
+    const all = document.querySelector('[data-thread="all"]'); const old = all.querySelector('.thread'); if (old) old.remove(); all.append(threadBody('all'));
+  });
+  renderMap(); jumpHash();
+}
+
+// ---------- comments ----------
+const isDone = (c) => c.status === 'done' || !!S.replies[c.id];
+const replyOf = (c) => (S.replies[c.id] && S.replies[c.id].reply) || c.reply || '';
+function threadFor(id){
+  const L = S.comments.filter(c => c.phase === id), nc = L.filter(c => c.kind !== 'add').length, na = L.filter(c => c.kind === 'add').length;
+  const btn = h('button', { class:'tbtn', type:'button', 'aria-expanded':String(!!S.open[id]), onclick:() => { S.open[id] = !S.open[id]; renderItems(); } }, '코멘트 ', h('b', { text:String(nc) }), na ? ' · 추가 제안 ' : '', na ? h('b', { text:String(na) }) : null, S.open[id] ? ' ▴' : ' ▾');
+  const bar = h('div', { class:'tbar' }, btn); if (S.open[id]) bar.append(threadBody(id)); return bar;
+}
+function threadBody(id){
+  const L = S.comments.filter(c => c.phase === id).sort((a,b) => a.at - b.at);
+  const th = h('div', { class:'thread' }); if (!L.length) th.append(h('div', { class:'empty', text:'아직 코멘트가 없어.' }));
+  for (const c of L) th.append(commentRow(c)); th.append(compose(id)); return th;
+}
+function commentRow(c){
+  const head = h('div', { class:'cm-head' }, h('b', { text:nameOf(c.by) }), h('span', { class:'chip ' + (isDone(c) ? 'done' : c.kind === 'add' ? 'review' : ''), text:isDone(c) ? '반영됨' : c.kind === 'add' ? '추가 제안' : '코멘트' }), h('span', { text:ago(c.at) }));
+  if (S.me && c.by === S.me.id && canWrite()) head.append(armed('삭제', '한 번 더 누르면 삭제', async () => { try { await S.db.doc('comments/' + c.id).delete(); } catch (e) { toast('삭제하지 못했어.'); } }));
+  const body = h('div', null, head, h('div', { class:'cm-text', text:c.text })); const r = replyOf(c); if (r) body.append(h('div', { class:'answer', style:'margin-top:4px' }, h('b', { text:'AI · ' }), r));
+  return h('div', { class:'cm' }, avatar(c.by), body);
+}
+function compose(id){
+  if (!canWrite()) return h('div', { class:'empty', text:'보기 권한이라 코멘트를 쓸 수 없어.' });
+  const kind = S.kind[id] || 'comment';
+  const seg = h('div', { class:'seg', role:'group', 'aria-label':'종류' }, ...[['comment','코멘트'],['add','추가 제안']].map(([k, l]) => h('button', { type:'button', class:k === kind ? 'on' : '', 'aria-pressed':String(k === kind), text:l, onclick:() => { S.kind[id] = k; renderItems(); } })));
+  const ta = h('textarea', { rows:3, id:'ta-' + id, placeholder:kind === 'add' ? '여기에 넣고 싶은 기능이나 할 일' : '의견, 질문, 걱정되는 점', value:S.draft[id] || '', 'aria-label':'코멘트 내용' });
+  const go = h('button', { class:'btn sm', type:'button', text:'등록', disabled:!ta.value.trim() });
+  ta.addEventListener('input', () => { S.draft[id] = ta.value; go.disabled = !ta.value.trim(); });
+  go.addEventListener('click', async () => { const text = ta.value.trim(); if (!text) return; go.disabled = true;
+    try { await S.db.collection('comments').add({ phase:id, kind, text:text.slice(0, 2000), at:Date.now(), status:'open' }); S.draft[id] = ''; ta.value = ''; } catch (e) { go.disabled = false; toast('등록하지 못했어.'); } });
+  return h('div', { class:'compose' }, seg, ta, h('div', { class:'row' }, h('span', { class:'dim grow', style:'font-size:12px', text:'AI가 다음 작업 때 읽고 답해' }), go));
+}
+function renderTalk(){
+  $('cntTalk').textContent = S.comments.filter(c => !isDone(c)).length || '';
+  const rec = S.comments.filter(c => c.phase !== 'all').sort((a,b) => b.at - a.at).slice(0, 10);
+  $('recentTalk').replaceChildren(...(rec.length ? rec.map(c => h('a', { href:'#' + c.phase, onclick:(e) => { e.preventDefault(); S.open[c.phase] = true; renderItems(); goTo(c.phase); } }, h('small', { text:label(c.phase) + ' · ' + nameOf(c.by) + ' · ' + ago(c.at) }), clip(c.text, 90))) : [h('div', { class:'empty', text:'아직 없어.' })]));
+}
+// re-rendering must not steal the cursor from a comment box someone is typing in
+function keepFocus(fn){ const a = document.activeElement, id = a && a.id && a.id.startsWith('ta-') ? a.id : null, s = id ? [a.selectionStart, a.selectionEnd] : null; fn(); if (id) { const t = $(id); if (t) { t.focus(); try { t.setSelectionRange(s[0], s[1]); } catch (e) {} } } }
+
+// ---------- modules + contracts ----------
+function renderModules(){
+  const cl = live(), byName = Object.fromEntries(S.contracts.map(c => [c.id, c]));
+  const cards = S.modules.map(m => {
+    const c = cl[m.id];
+    const chips = (lab, list) => list && list.length ? h('div', { class:'links-row' }, lab, ...list.map(n => h('a', { href:'#c-' + n, class:'chip', text:n, onclick:(e) => { e.preventDefault(); const t = $('c-' + n); if (t) t.scrollIntoView({ behavior:'smooth', block:'start' }); } }))) : null;
+    return h('div', { class:'card mod' + (c ? ' busy' : '') },
+      h('div', { class:'mod-top' }, h('span', { class:'dot' + (c ? ' on' : '') }), h('b', { text:m.id }), c ? h('span', { class:'chip work', text:c.name + (c.agent ? ' · ' + c.agent : '') }) : null),
+      m.note ? h('div', { class:'meta', text:m.note }) : null,
+      h('div', { class:'files' }, ...(m.files || []).map(f => h('code', { text:f }))),
+      chips('제공', m.provides), chips('사용', m.requires));
+  });
+  if (S.free.length) cards.push(h('div', { class:'card mod free' }, h('div', { class:'mod-top' }, h('b', { text:'누구나 고칠 수 있는 파일' })), h('div', { class:'files' }, ...S.free.map(f => h('code', { text:f })))));
+  $('modGrid').replaceChildren(...(cards.length ? cards : [h('div', { class:'empty', text:'아직 모듈이 없어.' })]));
+  const users = (n) => S.modules.filter(m => (m.requires || []).includes(n)).map(m => m.id);
+  $('conList').replaceChildren(...(S.contracts.length ? S.contracts.slice().sort((a,b) => a.id.localeCompare(b.id)).map(c => h('div', { class:'card', id:'c-' + c.id },
+    h('div', { class:'block-head', style:'margin:0' }, h('h2', { style:'margin:0;font-size:16px' }, c.id, h('span', { class:'dim', style:'font-weight:400', text:' v' + (c.v || 1) })), h('span', { class:'dim', style:'font-size:13px', text:'제공 ' + (c.owner || '?') + (users(c.id).length ? ' · 사용 ' + users(c.id).join(', ') : '') })),
+    h('pre', { class:'md', text:c.md || '' }), c.at ? h('small', { class:'dim', text:'바뀜 ' + ago(c.at) + (c.by ? ' · ' + nameOf(c.by) : '') }) : null)) : [h('div', { class:'empty', text:'아직 연결부가 없어.' })]));
+  const pend = S.crq.filter(r => !r.done).sort((a,b) => (a.at||0) - (b.at||0));
+  $('crqBlock').hidden = !pend.length; $('cntCrq').textContent = pend.length || '';
+  $('crqList').replaceChildren(...pend.map(r => {
+    const con = byName[r.name], holder = con && con.owner && cl[con.owner];
+    const may = isAdmin() || (holder && S.me && holder.by === S.me.id);
+    const act = may ? h('div', { class:'row' }, h('button', { class:'btn sm', type:'button', text:'승인', onclick:() => decide(r.id, true) }), h('button', { class:'btn ghost sm', type:'button', text:'거절', onclick:() => decide(r.id, false) })) : h('div', { class:'dim', style:'font-size:13px', text:'제공 모듈(' + ((con && con.owner) || '?') + ')을 잡은 사람이나 관리자가 정해' });
+    return h('div', { class:'ask' }, h('div', { class:'ask-head' }, h('b', { text:r.name }), h('span', { text:nameOf(r.by) + ' · ' + ago(r.at) })), r.reason ? h('div', { text:r.reason }) : null,
+      h('details', null, h('summary', { text:'바꾸자는 규격 보기' }), h('pre', { class:'md', text:r.md || '' })), act);
+  }));
+}
+async function decide(id, ok){ try { const r = await api('/api/crq', 'POST', { id, ok }); toast(r.text || '처리했어'); } catch (e) { toast(e.message); } }
+
+// ---------- memo ----------
+const ta = $('memoText'); let memoTimer = 0;
+function memoState(){ const st = $('memoState'); if (S.memoDirty) { st.textContent = '저장 중…'; return; } st.textContent = S.memo && S.memo.at ? '저장됨 · ' + nameOf(S.memo.by) + ' · ' + ago(S.memo.at) : '비어 있음'; }
+ta.addEventListener('input', () => { if (!canWrite()) return; S.memoDirty = true; memoState(); clearTimeout(memoTimer); memoTimer = setTimeout(saveMemo, 1200); });
+async function saveMemo(){ const body = { text:ta.value.slice(0, 100000), by:S.me.id, at:Date.now() }; try { await S.db.doc('notes/memo').set(body); S.memo = body; S.memoDirty = false; } catch (e) { toast('메모를 저장하지 못했어. 계속 쓰면 다시 시도해.'); } memoState(); }
+$('memoLoad').addEventListener('click', () => { if (S.memo) { ta.value = S.memo.text || ''; S.memoDirty = false; $('memoBanner').hidden = true; memoState(); } });
+
+// ---------- structure map: phases → to-dos (tag color) → specs; dashed = mention links ----------
+const SVGNS = 'http://www.w3.org/2000/svg';
+function sv(tag, attrs, parent){ const e = document.createElementNS(SVGNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.append(e); return e; }
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
+function clip(t, n){ t = String(t || '').replace(/\*\*/g, '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t; }
+const STOP = new Set(['시스템','구조','정의','핵심','기둥','한','줄','네','과','와','및','the','and']);
+const specKeys = (sp) => String(sp.title || '').split(/[^0-9A-Za-z가-힣]+/).filter(w => w.length >= 2 && !STOP.has(w));
+const mentions = (text, sp) => { const t = String(text || ''); return t.includes('[[' + sp.id + ']]') || specKeys(sp).some(k => t.includes(k)); };
+function goTo(id){ const it = S.items.find(x => x.id === id); if (!it) return; show(it.type === 'spec' ? 'spec' : 'road'); const t = $(id); if (t) setTimeout(() => t.scrollIntoView({ behavior:'smooth', block:'start' }), 30); }
+let hashDone = false; function jumpHash(){ if (hashDone) return; const id = decodeURIComponent((location.hash || '').slice(1)); if (!id || !S.items.some(x => x.id === id)) return; hashDone = true; goTo(id); }
+function renderMap(){
+  const svg = $('planMap'); svg.replaceChildren();
+  const ph = S.items.filter(x => x.type === 'phase').sort((a,b) => (a.order||0) - (b.order||0)), sp = S.items.filter(x => x.type === 'spec').sort((a,b) => (a.order||0) - (b.order||0));
+  $('mapBox').hidden = !S.items.length; if (!S.items.length) return;
+  const tags = (S.info && S.info.tags) || [], tagCol = (id) => { const t = tags.find(x => x.id === id); return t ? tagColor(t.color) : cssVar('--dim'); };
+  const cc = {}; for (const c of S.comments) cc[c.phase] = (cc[c.phase] || 0) + 1;
+  $('mapLegend').replaceChildren(...tags.map(t => { const i = h('i'); i.style.background = tagColor(t.color); return h('span', null, i, t.label); }));
+  const RH = 26, X1 = 14, W1 = 168, X2 = 214, W2 = 250, X3 = 520, W3 = 196, W = X3 + W3 + 14;
+  const rows = []; let y = 16; const pos = {};
+  for (const p of ph) { const todos = p.todo || []; const n = Math.max(1, todos.length); pos[p.id] = { y:y + (n * RH) / 2 - 11 }; todos.forEach((t, k) => rows.push({ p, t, y:y + k * RH })); y += n * RH + 18; }
+  const gap = sp.length ? Math.max(34, Math.min(60, (y - 16) / sp.length)) : 40; sp.forEach((s, k) => { pos[s.id] = { y:16 + k * gap }; });
+  const H = Math.max(y, 16 + sp.length * gap) + 10; svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  const gL = sv('g', {}, svg), gN = sv('g', {}, svg);
+  const curve = (x1, y1, x2, y2, bend) => { const m = bend != null ? bend : (x1 + x2) / 2; return 'M' + x1 + ',' + y1 + ' C' + m + ',' + y1 + ' ' + m + ',' + y2 + ' ' + x2 + ',' + y2; };
+  const nodeG = (x, yy, id) => { const g = sv('g', { class:'pm-node', tabindex:0, role:'link', transform:'translate(' + x + ',' + yy + ')' }, gN); g.addEventListener('click', () => goTo(id)); g.addEventListener('keydown', e => { if (e.key === 'Enter') goTo(id); }); return g; };
+  const badge = (g, x, n) => { sv('circle', { cx:x, cy:11, r:8, fill:cssVar('--accent') }, g); const t = sv('text', { x, y:15, 'font-size':10, 'text-anchor':'middle', 'font-weight':700 }, g); t.style.fill = '#fff'; t.textContent = n > 9 ? '9+' : n; };
+  for (let i = 1; i < ph.length; i++) sv('path', { d:'M' + (X1 + 18) + ',' + (pos[ph[i-1].id].y + 22) + ' L' + (X1 + 18) + ',' + pos[ph[i].id].y, stroke:cssVar('--line'), 'stroke-width':2, fill:'none' }, gL);
+  const todoPos = [];
+  for (const r of rows) { const yy = r.y + 11; sv('path', { d:curve(X1 + W1, pos[r.p.id].y + 11, X2, yy), stroke:cssVar('--line'), fill:'none' }, gL);
+    const g = nodeG(X2, r.y, r.p.id); sv('circle', { cx:7, cy:11, r:5, fill:r.t.tag ? tagCol(r.t.tag) : cssVar('--dim') }, g);
+    const tx = sv('text', { x:18, y:15, 'font-size':12 }, g); tx.textContent = clip(r.t.text, 22); sv('title', {}, g).textContent = r.t.text; todoPos.push({ r, y:yy }); }
+  for (const s of sp) { let any = false;
+    for (const tp of todoPos) if (mentions(tp.r.t.text, s)) { any = true; sv('path', { d:curve(X2 + W2 - 6, tp.y, X3, pos[s.id].y + 11), stroke:cssVar('--accent'), 'stroke-opacity':.55, 'stroke-dasharray':'4 4', fill:'none' }, gL); }
+    for (const p of ph) if (mentions(p.goal, s) || mentions(p.done, s)) { any = true; sv('path', { d:curve(X1 + W1, pos[p.id].y + 11, X3, pos[s.id].y + 11), stroke:cssVar('--accent'), 'stroke-opacity':.35, 'stroke-dasharray':'2 5', fill:'none' }, gL); }
+    for (const o of sp) if (o.id !== s.id && String(o.md || '').includes('[[' + s.id + ']]')) { any = true; sv('path', { d:curve(X3 + W3, pos[o.id].y + 11, X3 + W3, pos[s.id].y + 11, X3 + W3 + 40), stroke:cssVar('--accent'), 'stroke-dasharray':'4 4', fill:'none' }, gL); }
+    s._linked = any; }
+  for (const p of ph) { const g = nodeG(X1, pos[p.id].y, p.id); const st = itemState(p.id); const state = st && st.state === 'working' ? 'working' : p.state;
+    const col = state === 'done' ? cssVar('--mint') : state === 'next' || state === 'working' ? cssVar('--accent') : cssVar('--line');
+    sv('rect', { width:W1, height:22, rx:11, fill:cssVar('--panel'), stroke:col, 'stroke-width':state ? 2 : 1 }, g);
+    const tx = sv('text', { x:10, y:15, 'font-size':12, 'font-weight':700 }, g); tx.textContent = clip((p.num != null ? p.num + ' · ' : '') + p.title, 18);
+    if (cc[p.id]) badge(g, W1 - 11, cc[p.id]); sv('title', {}, g).textContent = p.title; }
+  for (const s of sp) { const g = nodeG(X3, pos[s.id].y, s.id);
+    sv('rect', { width:W3, height:22, rx:6, fill:cssVar('--chip'), stroke:s._linked ? cssVar('--accent') : cssVar('--line') }, g);
+    const tx = sv('text', { x:8, y:15, 'font-size':12 }, g); tx.textContent = clip(s.id + ' · ' + s.title, 24);
+    if (cc[s.id]) badge(g, W3 - 11, cc[s.id]); sv('title', {}, g).textContent = s.title; }
+}
+
+// ---------- connect ----------
+function renderAll(){ renderNow(); renderAsks(); renderActivity(); renderSide(); renderTalk(); }
+setInterval(() => { renderNow(); renderActivity(); }, 30000);
+(async () => {
+  if (!window.claude || !claude.use) { $('lead').textContent = '이 페이지는 기획판 허브에서 열어줘.'; return; }
+  const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]); S.db = db;
+  try { S.me = await user.me(); } catch (e) {}
+  try { const t = await api('/api/team'); for (const p of t.team) S.team[p.id] = p; } catch (e) {}
+  renderMe(); renderAskTo();
+  if (!canWrite()) { ta.readOnly = true; }
+  // _doc = the document id (a claim document is keyed by module and also carries its claim id in id)
+  const col = (name, fn) => db.collection(name).onSnapshot(q => { fn(q.docs.map(d => Object.assign({ id:d.id }, d.data(), { _doc:d.id }))); }, () => {});
+  db.doc('project/info').onSnapshot(s => { S.info = s.exists ? s.data() : null; renderInfo(); renderItems(); }, () => {});
+  col('items', L => { S.items = L.map(normItem); renderItems(); renderSide(); renderActivity(); });
+  col('comments', L => { S.comments = L; renderItems(); renderTalk(); renderSide(); });
+  col('replies', L => { S.replies = Object.fromEntries(L.map(r => [r.id, r])); renderItems(); renderTalk(); renderSide(); });
+  col('log', L => { S.log = L; renderActivity(); renderItems(); });
+  col('claims', L => { S.claims = Object.fromEntries(L.map(c => [c._doc, c])); renderNow(); renderModules(); renderItems(); });
+  col('modules', L => { S.free = ((L.find(m => m.id === '_free') || {}).files) || []; S.modules = L.filter(m => !m.id.startsWith('_')).sort((a,b) => (a.order||0) - (b.order||0) || a.id.localeCompare(b.id)); renderNow(); renderModules(); });
+  col('contracts', L => { S.contracts = L; renderModules(); });
+  col('crq', L => { S.crq = L; renderModules(); renderSide(); });
+  col('asks', L => { S.asks = L; renderAsks(); renderNow(); });
+  db.doc('notes/memo').onSnapshot(s => { const d = s.exists ? s.data() : null; if (d && S.memo && d.at === S.memo.at) return; S.memo = d;
+    if (document.activeElement === ta && S.memoDirty) $('memoBanner').hidden = false; else ta.value = (d && d.text) || ''; memoState(); }, () => {});
+  renderAll();
+})();
+})();
+</script>
+</body>
+</html>

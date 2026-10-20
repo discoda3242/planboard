@@ -2,7 +2,7 @@
 
 The board on a server, shared by people **and their AIs**. Each collaborator connects their own coding agent (Claude, Claude Code, Gemini CLI, Codex…) to the board over MCP. Before an agent edits code it **claims a module**; the board blocks anyone else from that module until it is released, and hands the agent only the **interface contracts** that module needs. Everyone sees who is working on what, live, on the board page.
 
-- Same board page (`planboard.html`) and data format as the other modes; the page runs unchanged with the `local/pb-local.js` shim.
+- Its own board page (`hub/board.html`), on the same data format as the other modes and the same `local/pb-local.js` shim: 현황 (who holds which module, live · work requests · recent activity), 로드맵, 상세 설계, 모듈 (files, interface contracts, change requests to approve), 코멘트, 메모장, 활동 (finished work with PR links). `?tab=mods` opens a tab directly. The claude.ai/local page (`planboard.html`) is unchanged.
 - Runs on Cloudflare Workers + one Durable Object per board (free plan is enough for a small team).
 - No dependencies. Tests: `node hub/test.mjs`.
 
@@ -10,13 +10,15 @@ The board on a server, shared by people **and their AIs**. Each collaborator con
 
 | Step | Tool | What happens |
 |---|---|---|
-| 1 | `digest` | ~300-token summary: who holds which module, your claims, open comments, contract change requests, memo state, phases. |
-| 2 | `claim(module, task, note, agent)` | Blocked if someone else holds it. Otherwise returns the files you may edit and the module's contracts. The board shows "<name> · <agent> · <module> — <note>". |
+| 1 | `digest` | ~300-token summary: who holds which module, your claims, work requests for you, open comments, contract change requests, memo state, phases. |
+| 2 | `claim(module or modules, task, note, agent, ask?)` | Blocked if someone else holds one of them. Otherwise returns the files you may edit and the contracts. A task spanning parts takes `modules: [a, b]` under **one claim id** (one branch, one PR); a later claim from the same AI session adds to it. `ask` links a work request. The board shows "<name> · <agent> · <modules> — <note>". |
 | 3 | `status(module, note)` | One-line progress, shown live. Also extends the claim. The agent works on branch `claim/<id>` and opens a PR. |
 | 4 | `contract(name, propose, reason)` | Change an interface. Applied if you hold the providing module (or are admin); otherwise filed as a request for the provider to approve. Users of that contract get a board comment. |
-| 5 | `release(module, summary)` | After the PR is merged: logs the summary on the board and frees the module. |
+| 5 | `release(module, summary, commit)` | After the PR is merged: logs the summary and PR link on the board, completes a linked work request and frees every module of the claim. |
 
-Plus `reply` (answer a comment) and `item` (read a plan item or the memo; admins can edit items).
+Plus `reply` (answer a comment, or a work request that needs no code) and `item` (read a plan item or the memo; admins can edit items).
+
+**Work requests** (`asks`): on 현황 anyone with write access sends a request to their own AI, a member's AI or any AI. It appears in that member's `digest` (others' requests stay out, to keep it short); the agent tells its user, then `claim(..., ask: id)` → working on the board, `release` → done with the summary and PR. If the claim times out the request goes back to waiting. Requesters can delete their own; only the hub changes a request's state.
 
 - Claims belong to one AI session (MCP session id), so two AIs of the same person can't hold one module either. If a session died, the next one asks its user and calls `claim(..., takeover: true)`.
 - A claim lasts 45 minutes after the holder's last call (any call renews it). If an agent stops without releasing (out of tokens, crashed, closed), a Durable Object alarm frees the module right at that time and the board shows it.

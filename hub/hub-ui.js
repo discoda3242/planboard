@@ -35,6 +35,13 @@
     list.hidden = !open || !mods.length;
   }
   (async () => {
+    // the hub's own page (hub/board.html) shows work live itself and has a slot for the share button
+    if (window.PB_HUBPAGE) {
+      await null; // let the rest of this file run first (api() below needs B)
+      const me = await api('/api/me').catch(() => null), slot = document.getElementById('pb-share');
+      if (me && me.role === 'admin' && slot) { inv.className = 'btn ghost'; inv.onclick = openInvite; slot.append(inv); }
+      return;
+    }
     const db = window.claude && (await window.claude.use('db')); if (!db) return;
     document.body.appendChild(box); box.hidden = true;
     db.collection('modules').onSnapshot((q) => { mods = q.docs.map((d) => ({ id: d.id, ...d.data() })).filter((m) => !m.id.startsWith('_')).sort((a, b) => (a.order || 0) - (b.order || 0) || a.id.localeCompare(b.id)); draw(); });
