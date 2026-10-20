@@ -47,7 +47,7 @@ async function githubCallback(req, env, u) {
     const gu = await (await fetch('https://api.github.com/user', { headers: { Authorization: 'Bearer ' + t.access_token, 'User-Agent': 'planboard-hub', Accept: 'application/vnd.github+json' } })).json();
     if (!gu.login) throw new Error('no user');
     const stub = env.BOARD.get(env.BOARD.idFromName(slug));
-    const r = await stub.fetch(new Request(`${u.origin}/b/${slug}/__gh`, { method: 'POST', body: JSON.stringify({ login: gu.login, name: gu.name || gu.login }) }));
+    const r = await stub.fetch(new Request(`${u.origin}/b/${slug}/__gh`, { method: 'POST', body: JSON.stringify({ login: gu.login, name: gu.name || gu.login, token: t.access_token }) }));
     const out = new Response(r.body, r); out.headers.append('Set-Cookie', 'pb_oauth=; Path=/auth; Max-Age=0'); return out;
   } catch (e) { return html(502, page404('GitHub 로그인에 실패했어: ' + esc(e.message))); }
 }
@@ -96,7 +96,7 @@ export class Board {
         return json(200, await this.hub.ciCheck(await req.json()));
       }
       if (p === '/__gh' && req.method === 'POST') {
-        const { login, name } = await req.json(); let me = await this.hub.byGithub(login);
+        const { login, name, token } = await req.json(); let me = await this.hub.byGithub(login);
         const ownerGh = ghName(this.env.OWNER_GITHUB);
         if (!me && ownerGh && ghName(login) === ownerGh) {
           const o = (await this.hub.members()).find((x) => x.owner);
@@ -104,6 +104,8 @@ export class Board {
           else { const r = await this.hub.addMember({ name, role: 'admin', owner: true, github: login }); me = await this.hub.member(r.id); }
         }
         if (!me || me.removed) return html(403, page404(`GitHub <b>${esc(login)}</b>은(는) 이 기획판 멤버가 아니야. 관리자에게 이 아이디를 알려주면 추가해줄 거야.`));
+        await this.hub.setGhToken(me.id, token);
+        if (name && me.name === me.github && name !== me.name) await this.hub.setName(me.id, name); // invited by username only: take their GitHub name
         return new Response(null, { status: 302, headers: { Location: base + '/', 'Set-Cookie': sessionCookie(slug, me.token) } });
       }
       if (p === '/join') {
@@ -127,7 +129,7 @@ export class Board {
       if (p === '/pb-local.js') return js(SHIM);
       if (p === '/hub-ui.js') return js(UI);
       if (p === '/admin') { if (me.role !== 'admin') throw httpErr(403, 'admins only'); return html(200, await this.adminPage(base, me)); }
-      if (p === '/api/me') return json(200, { id: me.id, name: me.name, email: me.email, role: me.role, isOwner: !!me.owner });
+      if (p === '/api/me') return json(200, { id: me.id, name: me.name, email: me.email, role: me.role, isOwner: !!me.owner, github: me.github || '' });
       if (p === '/api/profiles') { const out = {}; for (const id of (u.searchParams.get('ids') || '').split(',')) { const m = id && (await this.hub.member(id)); if (m) out[id] = { name: m.name }; } return json(200, { profiles: out }); }
       if (p === '/api/doc' && req.method === 'GET') return json(200, { data: await this.hub.apiGetDoc(me, u.searchParams.get('path')) });
       if (p === '/api/col') return json(200, { docs: await this.hub.apiCol(me, u.searchParams.get('name')) });
@@ -138,8 +140,13 @@ export class Board {
         const b = await req.json(); let n = 0; for (const d of b.docs || []) { await this.hub.apiWrite(me, { op: 'set', path: d.col + '/' + d.id, data: d.data }); n++; }
         return json(200, { ok: true, n });
       }
+      if (p === '/api/people') { // admin: GitHub people to invite — search results for ?q=, else the admin's following + followers
+        if (me.role !== 'admin') throw httpErr(403, 'admins only');
+        return json(200, await this.people(me, (u.searchParams.get('q') || '').trim().slice(0, 60)));
+      }
       if (p === '/api/members') {
         if (me.role !== 'admin') throw httpErr(403, 'admins only');
+        if (req.method === 'GET') return json(200, { members: (await this.hub.members()).filter((m) => !m.removed).map((m) => ({ id: m.id, name: m.name, github: m.github || '', role: m.role, owner: !!m.owner })) });
         const b = await req.json();
         if (req.method === 'POST') { if (!String(b.name || '').trim() && !ghName(b.github)) throw httpErr(400, 'name or GitHub username required'); const r = await this.hub.addMember({ name: b.name, email: b.email, role: b.role, github: b.github }); return json(200, { id: r.id, link: base + '/join?t=' + r.token }); }
         if (req.method === 'PATCH') { await this.hub.setGithub(b.id, b.github); return json(200, { ok: true }); }
@@ -147,6 +154,27 @@ export class Board {
       }
       throw httpErr(404, 'not found');
     } catch (e) { const c = e.code >= 400 && e.code < 600 ? e.code : 500; if (c === 500) console.error(e); return json(c, { error: e.message }); }
+  }
+
+  // GitHub accounts for the invite box, called with the admin's own token when they signed in with GitHub (higher rate limit)
+  async people(me, q) {
+    let tok = await this.hub.ghToken(me.id);
+    const gh = async (path) => {
+      const h = { 'User-Agent': 'planboard-hub', Accept: 'application/vnd.github+json' };
+      let r = await fetch('https://api.github.com' + path, { headers: tok ? { ...h, Authorization: 'Bearer ' + tok } : h });
+      if (r.status === 401 && tok) { await this.hub.setGhToken(me.id, null); tok = null; r = await fetch('https://api.github.com' + path, { headers: h }); } // revoked: retry without
+      if (!r.ok) throw httpErr(r.status === 403 || r.status === 429 ? 429 : 502, r.status === 403 || r.status === 429 ? 'GitHub 검색 한도에 걸렸어. 잠깐 뒤에 다시 해줘.' : 'GitHub 응답 ' + r.status);
+      return r.json();
+    };
+    let list = [], friends = false;
+    if (q) list = (await gh('/search/users?per_page=12&q=' + encodeURIComponent(q))).items || [];
+    else if (tok) { // without the admin's own token GitHub's shared-IP limit is hit almost at once, so the page asks them to sign in instead
+      friends = true;
+      const [a, b] = await Promise.all([gh('/user/following?per_page=100'), gh('/user/followers?per_page=100')]);
+      const seen = new Set(); list = [...a, ...b].filter((x) => !seen.has(x.login) && seen.add(x.login));
+    }
+    const members = new Map((await this.hub.members()).filter((m) => !m.removed && m.github).map((m) => [m.github, m.role]));
+    return { friends, signedIn: !!tok, people: list.filter((x) => x.type !== 'Organization').map((x) => ({ login: x.login, avatar: x.avatar_url, role: members.get(ghName(x.login)) || null })) };
   }
 
   async adminPage(base, me) {

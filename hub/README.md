@@ -46,7 +46,7 @@ Globs: `src/room.js`, `src/**`, `tests/*.js`, `**/*.md`.
 2. **GitHub sign-in (recommended):** create a GitHub OAuth app (GitHub → Settings → Developer settings → OAuth Apps) with callback URL `https://<worker>.workers.dev/auth/github/callback`, then `npx wrangler secret put GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`, set `OWNER_GITHUB` in `wrangler.jsonc` to your username and deploy again. Signing in with that account makes you the owner.
 3. **Open your board:** `https://<worker>.workers.dev/b/<board>/join?t=<OWNER_KEY>&name=<your name>`. `<board>` is any name (lowercase, digits, `-`); each name is a separate board.
 4. **Load data:** `node hub/import.mjs "<your join link>" <export.json> <seed.json>` — JSON files shaped `{docs:[{col,id,data}]}`, or a local board folder.
-5. **Invite people:** on `/b/<board>/admin`, add each person's GitHub username. They open `/b/<board>/` and sign in with GitHub. Each member also has an invite link (no GitHub needed) and an MCP URL; treat both like passwords.
+5. **Invite people:** admins press **공유 · 멤버 초대** on the board: copy the board address, then pick people from your GitHub following/followers or search GitHub by username or name, choose a role and invite. (Or add GitHub usernames on `/b/<board>/admin`.) Invited people open the address and sign in with GitHub. Each member also has an invite link (no GitHub needed) and an MCP URL; treat both like passwords. The friends list uses the admin's own GitHub sign-in token (no scopes, public data only), stored on the board and never sent to the page.
 6. **Connect each AI** with the member's MCP URL:
    - claude.ai: Settings → Connectors → Add custom connector → paste the URL.
    - Claude Code: `claude mcp add --transport http planboard <MCP URL>`

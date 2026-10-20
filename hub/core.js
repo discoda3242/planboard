@@ -56,7 +56,11 @@ export class Hub {
   async setGithub(id, login) { const m = await this.member(id); if (!m) throw httpErr(404, 'no member'); const g = ghName(login);
     const other = g && (await this.byGithub(g)); if (other && other.id !== id) throw httpErr(400, `GitHub ${g}은(는) 이미 ${other.name}에게 연결돼 있어`);
     const { id: _, ...rest } = m; await this.s.put('m:' + id, { ...rest, github: g }); this.onChange('*'); }
-  async removeMember(id) { const m = await this.member(id); if (!m || m.owner) throw httpErr(400, 'cannot remove'); await this.s.delete('t:' + m.token);
+  async setName(id, name) { const m = await this.member(id); if (!m || !clip(name, 60)) return; const { id: _, ...rest } = m; await this.s.put('m:' + id, { ...rest, name: clip(name, 60) }); this.onChange('*'); }
+  // the member's GitHub OAuth token (no scopes: public data only), kept apart from the member record so it is never sent out
+  async ghToken(id) { return (await this.s.get('gh:' + id)) || null; }
+  async setGhToken(id, tok) { if (tok) await this.s.put('gh:' + id, tok); else await this.s.delete('gh:' + id); }
+  async removeMember(id) { const m = await this.member(id); if (!m || m.owner) throw httpErr(400, 'cannot remove'); await this.s.delete('t:' + m.token); await this.s.delete('gh:' + id);
     await this.s.put('m:' + id, { ...m, id: undefined, token: null, role: 'view', removed: true }); this.onChange('*'); }
 
   // ---------- page API (same shape as local/server.mjs, so local/pb-local.js works unchanged) ----------
