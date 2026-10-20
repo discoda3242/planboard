@@ -47,7 +47,9 @@ async function githubCallback(req, env, u) {
     const gu = await (await fetch('https://api.github.com/user', { headers: { Authorization: 'Bearer ' + t.access_token, 'User-Agent': 'planboard-hub', Accept: 'application/vnd.github+json' } })).json();
     if (!gu.login) throw new Error('no user');
     const stub = env.BOARD.get(env.BOARD.idFromName(slug));
-    const r = await stub.fetch(new Request(`${u.origin}/b/${slug}/__gh`, { method: 'POST', body: JSON.stringify({ login: gu.login, name: gu.name || gu.login, token: t.access_token }) }));
+    // redirect: 'manual' — the board answers with a 302 + session cookie for the browser; a followed redirect would
+    // fetch the board again without that cookie and hand back the sign-in page instead
+    const r = await stub.fetch(new Request(`${u.origin}/b/${slug}/__gh`, { method: 'POST', redirect: 'manual', body: JSON.stringify({ login: gu.login, name: gu.name || gu.login, token: t.access_token }) }));
     const out = new Response(r.body, r); out.headers.append('Set-Cookie', 'pb_oauth=; Path=/auth; Max-Age=0'); return out;
   } catch (e) { return html(502, page404('GitHub 로그인에 실패했어: ' + esc(e.message))); }
 }
