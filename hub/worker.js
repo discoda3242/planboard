@@ -12,6 +12,12 @@
 // Var: OWNER_GITHUB — your GitHub username; signing in with it makes you the owner of any board on this hub.
 import { Hub, mcpHandle, httpErr, ROLES, randToken, ghName } from './core.js';
 import { PAGE, SHIM, UI } from './assets.js';
+// Merge gate (optional): the board as a GitHub App merges PRs that pass its claim check and the repo's build checks.
+//   Secrets GH_APP_ID, GH_APP_KEY (the app's private key PEM), GH_WEBHOOK_SECRET; var GH_BOARDS {"owner/repo":"board"},
+//   GH_CHECKS (check names that must pass, default "build"). App webhook URL: <hub>/gh/webhook
+import { githubClient, verifyWebhook } from './github.js';
+
+const ghBoards = (env) => { const v = env.GH_BOARDS; if (v && typeof v === 'object') return v; try { return JSON.parse(v || '{}'); } catch { return {}; } };
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,40}$/;
 
@@ -19,11 +25,19 @@ export default {
   async fetch(req, env) {
     const u = new URL(req.url);
     if (u.pathname === '/auth/github/callback') return githubCallback(req, env, u);
+    if (u.pathname === '/gh/webhook' && req.method === 'POST') {
+      const body = await req.text();
+      if (!(await verifyWebhook(env.GH_WEBHOOK_SECRET, body, req.headers.get('X-Hub-Signature-256')))) return new Response('bad signature', { status: 401 });
+      let p; try { p = JSON.parse(body); } catch { return new Response('bad json', { status: 400 }); }
+      const slug = p.repository && ghBoards(env)[p.repository.full_name];
+      if (!slug || !SLUG.test(slug)) return new Response('no board for this repo', { status: 202 });
+      return env.BOARD.get(env.BOARD.idFromName(slug)).fetch(new Request(`${u.origin}/b/${slug}/__ghhook`, { method: 'POST', headers: { 'X-GitHub-Event': req.headers.get('X-GitHub-Event') || '' }, body }));
+    }
     const m = u.pathname.match(/^\/b\/([^/]+)(\/.*)?$/);
     if (!m) return new Response('Planboard hub. Open /b/<board>/join?t=<link token>.', { status: u.pathname === '/' ? 200 : 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
     if (!SLUG.test(m[1])) return new Response('bad board name', { status: 400 });
     if (!m[2]) return Response.redirect(u.origin + u.pathname + '/' + u.search, 302);
-    if (m[2] === '/__gh') return new Response('not found', { status: 404 }); // internal: only the callback below reaches it
+    if (m[2] === '/__gh' || m[2] === '/__ghhook') return new Response('not found', { status: 404 }); // internal: only reached from this worker
     if (m[2] === '/login') {
       if (!env.GITHUB_CLIENT_ID) return html(501, page404('GitHub 로그인이 아직 설정되지 않았어. 초대 링크로 들어와줘.'));
       const state = m[1] + '.' + randToken();
@@ -80,7 +94,20 @@ export class Board {
     const u = new URL(req.url);
     const [, slug, rest] = u.pathname.match(/^\/b\/([^/]+)(\/.*)$/);
     const base = `${u.origin}/b/${slug}`, p = rest;
+    if (!this.hub.gh && this.env.GH_APP_ID && this.env.GH_APP_KEY) { // this board's repo, if the hub's GitHub App is set up for it
+      const repo = Object.entries(ghBoards(this.env)).find(([, b]) => b === slug)?.[0];
+      if (repo) { this.hub.gh = githubClient({ appId: this.env.GH_APP_ID, key: this.env.GH_APP_KEY, repo }); this.hub.repo = repo; if (this.env.GH_CHECKS) this.hub.checks = String(this.env.GH_CHECKS).split(',').map((x) => x.trim()).filter(Boolean); }
+    }
     try {
+      if (p === '/__ghhook' && req.method === 'POST') {
+        const ev = req.headers.get('X-GitHub-Event'), d = await req.json();
+        try {
+          if (ev === 'pull_request') await this.hub.onPullRequest(d.pull_request);
+          else if (ev === 'check_suite' && d.action === 'completed') await this.hub.onChecksDone(d.check_suite.head_sha);
+          else if (ev === 'check_run' && d.action === 'completed') await this.hub.onChecksDone(d.check_run.head_sha);
+        } catch (e) { console.error('webhook', e); return json(200, { error: e.message }); }
+        await this.schedule(); return json(200, { ok: true });
+      }
       // ---- MCP: token in the path (works as a claude.ai custom connector, in Claude Code and Gemini CLI) ----
       const mm = p.match(/^\/mcp\/([A-Za-z0-9_-]{8,})$/);
       if (mm) {

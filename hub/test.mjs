@@ -95,7 +95,7 @@ assert.match(await call(b, 'digest'), /메모: 바뀜/); await call(b, 'item', {
 let res = await mcpHandle(hub, b, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } });
 assert.equal(res.result.protocolVersion, '2025-06-18'); assert.match(res.result.instructions, /claim/);
 assert.equal(await mcpHandle(hub, b, { jsonrpc: '2.0', method: 'notifications/initialized' }), null);
-res = await mcpHandle(hub, b, { jsonrpc: '2.0', id: 2, method: 'tools/list' }); assert.equal(res.result.tools.length, 7);
+res = await mcpHandle(hub, b, { jsonrpc: '2.0', id: 2, method: 'tools/list' }); assert.equal(res.result.tools.length, 8);
 await call(b, 'claim', { module: 'arcade', note: 'y' });
 res = await mcpHandle(hub, a, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'claim', arguments: { module: 'arcade', note: 'x' } } });
 assert.equal(res.result.isError, true); assert.match(res.result.content[0].text, /막힘/);
@@ -201,7 +201,7 @@ resp = await f('/api/col?name=claimlog', { headers: { Cookie: 'pb_t=' + tok } })
   r = await M2({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'claim', arguments: { module: 'room', note: 'a', agent: 'Claude' } } }, sidA); assert.match((await r.json()).result.content[0].text, /잡았어/);
   r = await M2({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'claim', arguments: { module: 'room', note: 'b', agent: 'Claude' } } }, sidB); assert.match((await r.json()).result.content[0].text, /네 다른 AI 세션/);
 }
-// several modules under one claim · work requests (asks)
+// several modules under one claim · tasks
 {
   const h = new Hub(memStore(), { now: () => T });
   const o = await h.member((await h.addMember({ name: '지은', role: 'admin', owner: true, github: 'jieun' })).id);
@@ -221,23 +221,112 @@ resp = await f('/api/col?name=claimlog', { headers: { Cookie: 'pb_t=' + tok } })
   await h.call(y, 'status', { module: 'physics', note: '거의 끝' }); assert.equal((await h.claims()).room.note, '거의 끝');
   assert.match(await h.call(y, 'release', { module: 'room', summary: '끝', commit: 'https://github.com/o/r/pull/7' }), /풀었어: room, machine, physics|풀었어: (\w+, ){2}\w+/);
   assert.deepEqual(await h.claims(), {}); const lg = (await h.list('log')).find((x) => x.data.pr); assert.equal(lg.data.pr, 'https://github.com/o/r/pull/7');
-  // asks: to me / to anyone show in my digest; to someone else does not
-  const a1 = await h.apiAdd(o, 'asks', { text: '소파 추가해줘', to: y.id, state: 'done', by: 'forged' });
-  const a2 = await h.apiAdd(o, 'asks', { text: '아무나 README 정리' }); await h.apiAdd(y, 'asks', { text: '지은 전용', to: o.id });
-  const A1 = await h.get('asks', a1); assert.equal(A1.state, 'open'); assert.equal(A1.by, o.id);
-  let d = await h.call(y, 'digest'); assert.ok(d.includes(a1) && d.includes(a2) && !d.includes('지은 전용')); assert.match(d, /작업 요청 2/);
-  await assert.rejects(h.apiWrite(y, { op: 'update', path: 'asks/' + a1, data: { state: 'done' } }), /상태는 AI/);
-  await assert.rejects(h.apiWrite(y, { op: 'delete', path: 'asks/' + a2 }), /not yours/);
-  r = await h.call(y, 'claim', { module: 'room', note: '소파', agent: 'Claude', ask: a1 }); const c2 = r.match(/claim (\w+)/)[1];
-  assert.equal((await h.get('asks', a1)).state, 'working'); assert.ok(!(await h.call(y, 'digest')).includes(a1));
+  // tasks: ai tasks for me / for anyone show in my digest; others' and people-only tasks do not
+  const a1 = await h.apiAdd(o, 'tasks', { title: '소파 추가해줘', to: y.id, ai: true, status: 'done', by: 'forged' });
+  const a2 = await h.apiAdd(o, 'tasks', { title: '아무나 README 정리', ai: true }); await h.apiAdd(y, 'tasks', { title: '지은 전용', to: o.id, ai: true });
+  const a4 = await h.apiAdd(o, 'tasks', { title: '사람이 할 일', to: y.id, due: '2026-10-01' });
+  await assert.rejects(h.apiAdd(o, 'tasks', { title: '' }), /제목/); await assert.rejects(h.apiAdd(o, 'tasks', { title: 'x', due: '10/1' }), /YYYY-MM-DD/);
+  const A1 = await h.get('tasks', a1); assert.equal(A1.status, 'todo'); assert.equal(A1.by, o.id); assert.equal(A1.ai, true);
+  let d = await h.call(y, 'digest'); assert.ok(d.includes(a1) && d.includes(a2) && !d.includes('지은 전용') && !d.includes(a4)); assert.match(d, /AI에게 맡긴 할 일 2/); assert.match(d, /내 할 일 1 \(마감 지남 1\)/);
+  // people move tasks (creator, assignee, admin); AI-side fields are ignored
+  await h.apiWrite(y, { op: 'update', path: 'tasks/' + a4, data: { status: 'doing', claim: 'forged' } }); const A4 = await h.get('tasks', a4); assert.equal(A4.status, 'doing'); assert.equal(A4.claim, undefined);
+  const z2 = await h.member((await h.addMember({ name: '남', role: 'interact' })).id);
+  await assert.rejects(h.apiWrite(z2, { op: 'update', path: 'tasks/' + a4, data: { status: 'done' } }), /만든 사람/);
+  await assert.rejects(h.apiWrite(y, { op: 'update', path: 'tasks/' + a4, data: { status: 'nope' } }), /상태는/);
+  await assert.rejects(h.apiWrite(y, { op: 'delete', path: 'tasks/' + a2 }), /not yours/);
+  r = await h.call(y, 'claim', { module: 'room', note: '소파', agent: 'Claude', todo: a1 }); const c2 = r.match(/claim (\w+)/)[1];
+  assert.equal((await h.get('tasks', a1)).status, 'doing'); assert.ok(!(await h.call(y, 'digest')).includes(a1));
   await h.call(y, 'release', { module: 'room', summary: '소파 넣음', commit: 'https://github.com/o/r/pull/8' });
-  const D1 = await h.get('asks', a1); assert.equal(D1.state, 'done'); assert.equal(D1.reply, '소파 넣음'); assert.equal(D1.pr, 'https://github.com/o/r/pull/8'); assert.ok(c2);
-  await h.call(y, 'reply', { comment: a2, text: '정리할 게 없어' }); assert.equal((await h.get('asks', a2)).state, 'done');
-  // an expired claim puts its request back in the queue
-  const a3 = await h.apiAdd(o, 'asks', { text: '물리 튜닝', to: y.id }); await h.call(y, 'claim', { module: 'physics', note: 't', agent: 'Claude', ask: a3 });
-  T += (LEASE_MIN + 1) * 6e4; await h.expire(); const A3 = await h.get('asks', a3); assert.equal(A3.state, 'open'); assert.equal(A3.claim, '');
+  const D1 = await h.get('tasks', a1); assert.equal(D1.status, 'review'); assert.equal(D1.reply, '소파 넣음'); assert.equal(D1.pr, 'https://github.com/o/r/pull/8'); assert.ok(c2);
+  await h.call(y, 'reply', { comment: a2, text: '정리할 게 없어' }); assert.equal((await h.get('tasks', a2)).status, 'done');
+  // the todo tool: list, add, move
+  assert.match(await h.call(y, 'todo', {}), /사람이 할 일/);
+  const added = (await h.call(y, 'todo', { title: '가구 목록 정리', to: 'me', due: '2026-12-01' })).match(/추가했어: (\w+)/)[1];
+  assert.equal((await h.get('tasks', added)).to, y.id); assert.equal(await h.call(y, 'todo', { id: added, status: 'done' }), 'ok');
+  // an expired claim puts its task back in the queue
+  const a3 = await h.apiAdd(o, 'tasks', { title: '물리 튜닝', to: y.id, ai: true }); await h.call(y, 'claim', { module: 'physics', note: 't', agent: 'Claude', todo: a3 });
+  T += (LEASE_MIN + 1) * 6e4; await h.expire(); const A3 = await h.get('tasks', a3); assert.equal(A3.status, 'todo'); assert.equal(A3.claim, '');
   // contract change requests can be dismissed from the page
   await h.call(y, 'contract', { name: 'prize', propose: 'new', reason: 'r' }); const q = (await h.list('crq'))[0];
   await assert.rejects(h.decideCrq(y, q.id, false), /관리자만/); assert.match(await h.decideCrq(o, q.id, false), /거절/); assert.equal((await h.get('crq', q.id)).dismissed, true);
+}
+// ---- merge gate: the board checks the PR and merges it ----
+{
+  const { appJwt, verifyWebhook, githubClient } = await import('./github.js');
+  const nc = await import('node:crypto');
+  // GitHub App key (PKCS#1 PEM, as GitHub hands it out) → RS256 JWT verifiable with the public key
+  const kp = nc.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const pem = kp.privateKey.export({ type: 'pkcs1', format: 'pem' });
+  const jwt = await appJwt(123, pem); const [h64, p64, s64] = jwt.split('.');
+  assert.ok(nc.verify('RSA-SHA256', Buffer.from(h64 + '.' + p64), kp.publicKey, Buffer.from(s64, 'base64url')));
+  assert.equal(JSON.parse(Buffer.from(p64, 'base64url')).iss, '123');
+  const sig = 'sha256=' + nc.createHmac('sha256', 'whsec').update('{"a":1}').digest('hex');
+  assert.equal(await verifyWebhook('whsec', '{"a":1}', sig), true); assert.equal(await verifyWebhook('whsec', '{"a":2}', sig), false); assert.equal(await verifyWebhook('', '{"a":1}', sig), false);
+  // installation token is fetched once and reused
+  const calls = []; const api = githubClient({ appId: 1, key: pem, repo: 'org/claw', fetchFn: async (url, init) => { calls.push(init.method + ' ' + url.replace('https://api.github.com', ''));
+    if (url.endsWith('/installation')) return new Response('{"id":9}'); if (url.includes('/access_tokens')) return new Response('{"token":"ghs_1"}'); return new Response('{"ok":1}'); } });
+  await api('GET', '/pulls/1'); await api('GET', '/pulls/2');
+  assert.deepEqual(calls, ['GET /repos/org/claw/installation', 'POST /app/installations/9/access_tokens', 'GET /repos/org/claw/pulls/1', 'GET /repos/org/claw/pulls/2']);
+
+  // fake GitHub repo state
+  const G = { prs: {}, runs: {}, statuses: [], merged: [] };
+  const gh = async (method, path, body) => {
+    let m;
+    if ((m = path.match(/^\/pulls\/(\d+)$/)) && method === 'GET') { const p = G.prs[m[1]]; if (!p) { const e = new Error('404'); e.status = 404; throw e; } return structuredClone(p); }
+    if ((m = path.match(/^\/pulls\/(\d+)\/files/))) return G.prs[m[1]].files.map((filename) => ({ filename }));
+    if ((m = path.match(/^\/commits\/(\w+)\/check-runs/))) return { check_runs: G.runs[m[1]] || [] };
+    if ((m = path.match(/^\/statuses\/(\w+)$/))) { G.statuses.push([m[1], body.state, body.description]); return {}; }
+    if ((m = path.match(/^\/pulls\/(\d+)\/merge$/)) && method === 'PUT') { const p = G.prs[m[1]]; if (p.conflict) { const e = new Error('409'); e.status = 405; throw e; } p.merged = true; p.state = 'closed'; G.merged.push(+m[1]); return { sha: 'mergesha1' }; }
+    throw new Error('unexpected ' + method + ' ' + path);
+  };
+  const h = new Hub(memStore(), { now: () => T, gh });
+  const y = await h.member((await h.addMember({ name: '유삭', role: 'interact', github: 'yusak' })).id);
+  const z = await h.member((await h.addMember({ name: '지은', role: 'admin', github: 'jieun' })).id);
+  await h.put('modules', 'room', { files: ['src/room.js'] }); await h.put('modules', 'physics', { files: ['src/physics.js'] });
+  const cid = (await h.call(y, 'claim', { module: 'room', note: '가구', agent: 'Gemini' })).match(/claim (\w+)/)[1];
+  const pr = (n, o) => (G.prs[n] = { number: n, state: 'open', merged: false, title: '가구 추가', base: { ref: 'main' }, head: { ref: 'claim/' + cid, sha: 'sha' + n }, user: { login: 'yusak' }, files: ['src/room.js'], ...o });
+  // 1) build still running → pending, claim stays held with a live note
+  pr(7); G.runs.sha7 = [{ name: 'build', status: 'in_progress' }];
+  let r = await h.call(y, 'release', { module: 'room', summary: '가구 3종 추가', pr: 7 });
+  assert.match(r, /PR #7 검사 중 \(build 실행 중\)/); assert.equal((await h.claims()).room.note, 'PR #7 검사 중');
+  assert.deepEqual(G.statuses.at(-1), ['sha7', 'pending', 'build 실행 중']);
+  r = await h.call(z, 'claim', { module: 'room', note: 'x', agent: 'Claude' }); assert.equal(r.error, true, 'module stays held until merged');
+  assert.match(await h.call(y, 'digest'), /PR: #7 room 검사 중/);
+  // 2) build finishes → webhook → board merges, frees the module, logs the summary
+  G.runs.sha7 = [{ name: 'build', status: 'completed', conclusion: 'success', started_at: '2' }];
+  await h.onChecksDone('sha7');
+  assert.deepEqual(G.merged, [7]); assert.equal((await h.claims()).room, undefined);
+  const lg = (await h.list('log')).find((l) => l.data.module === 'room'); assert.equal(lg.data.state, 'review'); assert.match(lg.data.text, /가구 3종 추가 \(PR #7 · mergesh\)/);
+  assert.deepEqual(G.statuses.at(-1).slice(0, 2), ['sha7', 'success']);
+  assert.match(await h.call(y, 'release', { module: 'physics', summary: 'x', pr: 7 }).catch((e) => e.message), /네가 잡은 모듈이 아니야/);
+  // 3) a file outside the module, then a failing build → blocked, reasons back to the agent, nothing merged
+  const c2 = (await h.call(y, 'claim', { module: 'room', note: '두번째', agent: 'Gemini' })).match(/claim (\w+)/)[1];
+  pr(8, { head: { ref: 'claim/' + c2, sha: 'sha8' }, files: ['src/room.js', 'src/physics.js'] }); G.runs.sha8 = [{ name: 'build', status: 'completed', conclusion: 'failure', html_url: 'https://gh/run/1', started_at: '1' }];
+  r = await h.call(y, 'release', { module: 'room', summary: 's', pr: 8 });
+  assert.match(r, /아직 머지 못 해: PR #8/); assert.match(r, /src\/physics\.js: physics 모듈 claim 없이 수정/); assert.match(r, /build 실패 \(failure\) https:\/\/gh\/run\/1/);
+  assert.equal(G.merged.length, 1); assert.match((await h.claims()).room.note, /PR #8 막힘/);
+  // fixed and pushed: webhook pull_request(synchronize) + checks done → merge
+  G.prs[8].files = ['src/room.js']; G.prs[8].head.sha = 'sha8b'; G.runs.sha8b = [{ name: 'build', status: 'completed', conclusion: 'success', started_at: '3' }];
+  await h.onPullRequest(G.prs[8]); assert.deepEqual(G.merged, [7, 8]); assert.equal((await h.claims()).room, undefined);
+  // 4) someone else's PR on your claim branch → blocked (author check)
+  const c3 = (await h.call(y, 'claim', { module: 'room', note: '세번째', agent: 'Gemini' })).match(/claim (\w+)/)[1];
+  pr(9, { head: { ref: 'claim/' + c3, sha: 'sha9' }, user: { login: 'jieun' } }); G.runs.sha9 = [{ name: 'build', status: 'completed', conclusion: 'success' }];
+  r = await h.call(y, 'release', { module: 'room', summary: 's', pr: 9 }); assert.match(r, /유삭\(yusak\)의 claim인데 jieun이\(가\) 올림/);
+  // 5) merge conflict → told to rebase
+  pr(10, { head: { ref: 'claim/' + c3, sha: 'sha10' }, conflict: true }); G.runs.sha10 = [{ name: 'build', status: 'completed', conclusion: 'success' }];
+  r = await h.call(y, 'release', { module: 'room', summary: 's', pr: 10 }); assert.match(r, /rebase/);
+  // without a GitHub App the old release (no pr) still works, and release(pr) explains why it can't
+  const h0 = new Hub(memStore(), { now: () => T }); const q = await h0.member((await h0.addMember({ name: 'q', role: 'interact' })).id); await h0.put('modules', 'room', { files: ['src/room.js'] });
+  await h0.call(q, 'claim', { module: 'room', note: 'n', agent: 'A' }); await assert.rejects(h0.call(q, 'release', { module: 'room', summary: 's', pr: 1 }), /GitHub에 연결되지 않았어/);
+  assert.match(await h0.call(q, 'release', { module: 'room', summary: 's' }), /풀었어/);
+
+  // webhook route: signature checked, routed to the board by repo
+  const env3 = { GH_WEBHOOK_SECRET: 'whsec', GH_BOARDS: '{"org/claw":"claw"}' }; let got = null;
+  env3.BOARD = { idFromName: (n) => n, get: () => ({ fetch: async (rq) => { got = [new URL(rq.url).pathname, rq.headers.get('X-GitHub-Event')]; return new Response('{}'); } }) };
+  const body = JSON.stringify({ action: 'completed', repository: { full_name: 'org/claw' }, check_suite: { head_sha: 'abc' } });
+  let rr = await worker.fetch(new Request('https://hub.dev/gh/webhook', { method: 'POST', headers: { 'X-Hub-Signature-256': 'sha256=00', 'X-GitHub-Event': 'check_suite' }, body }), env3); assert.equal(rr.status, 401);
+  rr = await worker.fetch(new Request('https://hub.dev/gh/webhook', { method: 'POST', headers: { 'X-Hub-Signature-256': 'sha256=' + nc.createHmac('sha256', 'whsec').update(body).digest('hex'), 'X-GitHub-Event': 'check_suite' }, body }), env3);
+  assert.equal(rr.status, 200); assert.deepEqual(got, ['/b/claw/__ghhook', 'check_suite']);
+  rr = await worker.fetch(new Request('https://hub.dev/b/claw/__ghhook', { method: 'POST', body }), env3); assert.equal(rr.status, 404, 'internal hook not reachable from outside');
 }
 console.log('hub tests passed');
