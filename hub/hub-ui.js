@@ -18,6 +18,7 @@
   head.onclick = () => { open = !open; try { localStorage.setItem('hubbar', open ? '1' : '0'); } catch (e) {} draw(); };
   let mods = [], claims = {};
   const inv = document.createElement('button'); inv.type = 'button'; inv.className = 'hubinv'; inv.textContent = '공유 · 멤버 초대';
+  const card = document.createElement('div'); card.className = 'hubcard';
   const hhmm = (t) => new Date(t).toTimeString().slice(0, 5);
   function draw() {
     const now = Date.now(), live = Object.entries(claims).filter(([, c]) => c.until > now);
@@ -31,7 +32,7 @@
       who.textContent = c ? `${c.name}${c.agent ? ' · ' + c.agent : ''} — ${c.note || ''} (${hhmm(c.since)}~)` : '비어 있음';
       const row = document.createElement('span'); row.style.display = 'contents'; row.append(dot, nm); li.append(row, who); return li;
     }));
-    box.hidden = !mods.length && !inv.isConnected;
+    box.hidden = !mods.length && !inv.isConnected && !card.isConnected;
     list.hidden = !open || !mods.length;
   }
   (async () => {
@@ -42,7 +43,37 @@
     setInterval(draw, 30000);
     const me = await api('/api/me').catch(() => null);
     if (me && me.role === 'admin') { box.append(inv); inv.onclick = openInvite; draw(); }
+    if (me) setupCard(me);
   })();
+
+  // ---------- first visit: connect this computer (installer clones the repo and connects the member's AI) ----------
+  function setupCard(me) {
+    const key = 'hubsetup:' + B; let later = false; try { later = localStorage.getItem(key) === 'later'; } catch (e) {}
+    const reopen = el('button', { type: 'button', className: 'hubinv', textContent: '내 컴퓨터에 연결', onclick: () => { try { localStorage.removeItem(key); } catch (e) {} reopen.remove(); show(); } });
+    if (me.aiConnected) return;
+    if (later) { box.append(reopen); draw(); return; }
+    show();
+    function show() {
+      const steps = el('ol', null,
+        el('li', { textContent: me.repo ? `코드를 둘 폴더를 정하고, 아래 설치 파일을 그 폴더에 저장해.` : '아래 설치 파일을 아무 폴더에 저장해. (코드 저장소는 관리자가 아직 안 정했어. 정해지면 다시 받으면 돼.)' }),
+        el('li', { textContent: 'Windows: 저장한 파일을 더블클릭. Mac·Linux: 터미널에서 sh <파일 경로>' }),
+        el('li', { textContent: me.repo ? `${me.repo} 코드를 받고, Claude Code를 이 기획판에 연결해 줘. GitHub 로그인 창이 뜨면 로그인하면 돼.` : 'Claude Code를 이 기획판에 연결해 줘.' }));
+      card.replaceChildren(el('b', { textContent: '내 컴퓨터에 연결' }),
+        el('p', { textContent: '이 기획판에서 같이 작업하려면 한 번만 설정하면 돼. 네 AI가 작업할 때마다 여기 실시간으로 보고해.' }), steps,
+        el('div', { className: 'row' },
+          el('a', { className: 'pri', href: B + '/setup.bat', download: '', textContent: 'Windows 설치 파일' }),
+          el('a', { href: B + '/setup.sh', download: '', textContent: 'Mac · Linux' }),
+          el('button', { type: 'button', textContent: '나중에', onclick: () => { try { localStorage.setItem(key, 'later'); } catch (e) {} card.remove(); box.append(reopen); draw(); } })),
+        el('small', { textContent: '설치 파일에는 네 전용 AI 연결 주소가 들어 있어. 다른 사람에게 보내지 마. 다른 AI(Gemini CLI·Codex)는 파일 안의 MCP 주소를 쓰면 돼.' }),
+        el('small', { className: 'state', role: 'status', textContent: 'AI 연결 기다리는 중…' }));
+      box.prepend(card); draw();
+      const t = setInterval(async () => { // the card goes away by itself once this member's AI calls the board
+        if (!card.isConnected) return clearInterval(t);
+        const m = await api('/api/me').catch(() => null);
+        if (m && m.aiConnected) { clearInterval(t); card.querySelector('.state').textContent = '연결됐어!'; setTimeout(() => { card.remove(); draw(); }, 2500); }
+      }, 15000);
+    }
+  }
 
   // ---------- share + invite (admins): GitHub friends / search → member, like adding a collaborator on GitHub ----------
   const B = window.PB_BASE || '';
@@ -60,7 +91,10 @@
   .hubdlg button{font:inherit;padding:7px 12px;border-radius:8px;border:1px solid var(--line,#ccc);background:transparent;color:inherit;cursor:pointer}.hubdlg button.pri{background:var(--accent,#36c);border-color:var(--accent,#36c);color:#fff}
   .hubdlg ul{list-style:none;margin:0;padding:0;display:grid;gap:4px;max-height:32vh;overflow:auto}.hubdlg li{display:flex;gap:10px;align-items:center;min-height:40px}
   .hubdlg li img{width:32px;height:32px;border-radius:50%;flex:none;background:var(--line,#ccc)}.hubdlg li .nm{flex:1;min-width:0;overflow-wrap:anywhere}.hubdlg small,.hubdlg .dim{color:var(--dim,#777)}
-  .hubdlg .x{position:absolute;top:10px;right:10px;border:0;font-size:18px;line-height:1;padding:6px 9px}` }));
+  .hubdlg .x{position:absolute;top:10px;right:10px;border:0;font-size:18px;line-height:1;padding:6px 9px}
+  .hubcard{padding:12px;display:grid;gap:8px;border-bottom:1px solid var(--line,#ccc)}.hubcard p,.hubcard ol{margin:0}.hubcard ol{padding-left:20px;display:grid;gap:2px}.hubcard small{color:var(--dim,#777)}
+  .hubcard .row{display:flex;gap:8px;flex-wrap:wrap}.hubcard .row>*{font:inherit;padding:7px 12px;border-radius:8px;border:1px solid var(--line,#ccc);background:transparent;color:inherit;cursor:pointer;text-decoration:none}
+  .hubcard .row>.pri{background:var(--accent,#36c);border-color:var(--accent,#36c);color:#fff;font-weight:600}.hubcard .row>*:focus-visible{outline:2px solid var(--accent,#36c);outline-offset:2px}` }));
   let dlg;
   function openInvite() {
     if (!dlg) dlg = buildInvite();
@@ -73,10 +107,15 @@
     const role = el('select', { ariaLabel: '초대할 권한' }, ...Object.entries({ interact: '개발·코멘트 (모듈 claim)', admin: '기획 편집 (관리자)', view: '보기만' }).map(([v, t]) => el('option', { value: v, textContent: t })));
     const q = el('input', { type: 'search', placeholder: 'GitHub 아이디나 이름 검색', ariaLabel: 'GitHub 사람 검색' });
     const title = el('h3'), msg = el('p', { className: 'dim', role: 'status' }), people = el('ul'), members = el('ul');
+    const repo = el('input', { placeholder: 'owner/name', ariaLabel: '코드 저장소 (owner/name)' }), repoMsg = el('small', { role: 'status' });
+    const repoSave = el('button', { type: 'button', textContent: '저장', onclick: async () => {
+      try { const r = await api('/api/repo', 'POST', { repo: repo.value }); repo.value = r.repo; repoMsg.textContent = !r.repo ? '저장소 없음: 초대해도 GitHub 저장소에는 초대 안 돼.' : r.autoInvite ? '저장됨. 초대하면 이 저장소 콜라보레이터 초대도 같이 가.' : '저장됨. 저장소 자동 초대는 허브에 GITHUB_REPO_TOKEN을 넣으면 켜져.'; }
+      catch (e) { repoMsg.textContent = e.message; } } });
     const d = el('dialog', { className: 'hubdlg', ariaLabel: '공유 · 멤버 초대' }, el('div', null,
       el('button', { type: 'button', className: 'x', textContent: '×', ariaLabel: '닫기', onclick: () => d.close() }),
       el('h2', { textContent: '공유 · 멤버 초대' }),
       el('div', null, el('div', { className: 'row' }, link, copy), el('small', { textContent: '초대한 사람은 이 주소를 열고 GitHub로 로그인하면 바로 들어와.' })),
+      el('div', null, el('h3', { textContent: '코드 저장소 (초대하면 여기 콜라보레이터로도 초대, 설치 파일이 이걸 받음)' }), el('div', { className: 'row' }, repo, repoSave), repoMsg),
       el('div', { className: 'row' }, q, role), title, msg, people,
       el('h3', { textContent: '멤버' }), members, el('small', null, el('a', { href: B + '/admin', textContent: '링크·MCP URL·내보내기 관리 →' }))));
     document.body.appendChild(d);
@@ -96,7 +135,11 @@
     }
     async function invite(login, btn) {
       btn.disabled = true;
-      try { await api('/api/members', 'POST', { github: login, role: role.value }); msg.textContent = `${login} 초대함 (${ROLE_KO[role.value]}). 위 주소를 보내주면 돼.`; await Promise.all([loadPeople(), loadMembers()]); }
+      try {
+        const r = await api('/api/members', 'POST', { github: login, role: role.value }), ri = r.repoInvite || {};
+        const gh = { sent: ' GitHub 저장소 초대도 보냈어 (메일로 가니까 수락하라고 말해줘).', already: ' 저장소에는 이미 들어와 있어.', owner: '', off: ' (저장소 자동 초대 꺼짐: ' + (ri.why || '') + ')', error: ' 저장소 초대 실패: ' + (ri.why || '') }[ri.state] || '';
+        await Promise.all([loadPeople(), loadMembers()]); msg.textContent = `${login} 초대함 (${ROLE_KO[role.value]}). 위 주소를 보내주면 돼.` + gh;
+      }
       catch (e) { msg.textContent = e.message; btn.disabled = false; }
     }
     async function loadMembers() {
@@ -108,7 +151,7 @@
     }
     q.oninput = () => { clearTimeout(timer); timer = setTimeout(loadPeople, 350); };
     d.addEventListener('click', (e) => { if (e.target === d) d.close(); }); // click on the backdrop
-    d.refresh = () => { loadPeople(); loadMembers(); q.focus(); };
+    d.refresh = () => { loadPeople(); loadMembers(); api('/api/me').then((m) => { if (document.activeElement !== repo) repo.value = m.repo || ''; }).catch(() => {}); q.focus(); };
     return d;
   }
 })();

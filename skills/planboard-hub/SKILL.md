@@ -33,13 +33,15 @@ Templates are next to this file in `templates/`. Copy them into the project and 
    Verify with a POST to `/b/<board>/api/ci-check` (Bearer CI key) using one `_free` file and one module file with no claim: the first passes, the second is reported.
    To make it binding, require the `claims` check for `main` (branch protection or a ruleset; on GitHub Free only for public repos).
 5. **Commit** seed, rules, workflow on a branch and open a PR (or push to main if that is how the user works and they agree).
-6. **Invite people** (step below). **Connect the user's own AI** with their MCP URL: `claude mcp add --transport http planboard <MCP URL>` — run it only if the user asks; it changes their Claude Code config.
+6. **Set the board's code repo**: on the board, 공유 · 멤버 초대 → 코드 저장소 → `owner/name` → 저장 (or `POST /b/<board>/api/repo {repo}` as an admin). Installers clone it, and invites add repo collaborators if the hub has `GITHUB_REPO_TOKEN` (make sure that token covers this repo).
+7. **Invite people** (step below). **Connect the user's own AI** with their MCP URL: `claude mcp add --transport http planboard <MCP URL>` — run it only if the user asks; it changes their Claude Code config.
 
 ## Sharing a board / inviting
 - On the board, admins press **공유 · 멤버 초대**: copy the board address, pick from their GitHub following/followers or search GitHub, choose a role, invite. (Or `/b/<board>/admin`.) If the friends list asks to sign in, the admin signs in with GitHub once more so the hub has their token.
 - Send the invited person **the board address** (`https://<hub>/b/<board>/`), not the GitHub repo link and not the owner link. They sign in with GitHub; if the account was invited they are in.
 - Roles: `admin` = edit plan items, modules, contracts · `interact` = comment, requests, claim modules and code · `view` = read only.
-- **Code access is separate.** For a private repo, also add them on GitHub (`gh api -X PUT repos/<owner/repo>/collaborators/<login> -f permission=push`, ask first — it emails an invitation). The CI check matches the PR author's GitHub account to the claim holder, so they must open PRs from that same account.
+- **Code access:** with the board's repo set and `GITHUB_REPO_TOKEN` on the hub, the invite also sends a GitHub collaborator invitation (they must accept it from the email or `github.com/<owner/repo>/invitations`). Without the token, add them yourself (`gh api -X PUT repos/<owner/repo>/collaborators/<login> -f permission=push`, ask first — it emails an invitation).
+- **Their computer:** on first visit they see 내 컴퓨터에 연결 with a personal installer. Saved in the folder they want and run, it clones the repo (GitHub CLI sign-in), connects their Claude Code to the board in that folder and adds a board shortcut. Needs git and the GitHub CLI; the installer says how to get them. The CI check matches the PR author's GitHub account to the claim holder, so they must open PRs from that same account.
 - Each member's AI connects with their own MCP URL (shown on `/admin`); treat it like a password. Removing a member on `/admin` disables their link, sign-in and MCP URL.
 
 ## How work flows (explain this when asked)

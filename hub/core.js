@@ -60,6 +60,11 @@ export class Hub {
   // the member's GitHub OAuth token (no scopes: public data only), kept apart from the member record so it is never sent out
   async ghToken(id) { return (await this.s.get('gh:' + id)) || null; }
   async setGhToken(id, tok) { if (tok) await this.s.put('gh:' + id, tok); else await this.s.delete('gh:' + id); }
+  // first MCP call of a member: the board stops showing them the "connect your computer" card
+  async markMcp(id) { const m = await this.member(id); if (!m || m.mcpSeen) return; const { id: _, ...rest } = m; await this.s.put('m:' + id, { ...rest, mcpSeen: this.now() }); }
+  // board settings kept outside the page's collections: {repo: 'owner/name'} (the code repo people clone and get invited to)
+  async cfg() { return (await this.s.get('cfg')) || {}; }
+  async setCfg(patch) { await this.s.put('cfg', { ...(await this.cfg()), ...patch }); }
   async removeMember(id) { const m = await this.member(id); if (!m || m.owner) throw httpErr(400, 'cannot remove'); await this.s.delete('t:' + m.token); await this.s.delete('gh:' + id);
     await this.s.put('m:' + id, { ...m, id: undefined, token: null, role: 'view', removed: true }); this.onChange('*'); }
 
