@@ -588,7 +588,7 @@ function threadBody(id){
   for (const c of L) th.append(commentRow(c)); th.append(compose(id)); return th;
 }
 function commentRow(c){
-  const head = h('div', { class:'cm-head' }, h('b', { text:nameOf(c.by) }), h('span', { class:'chip ' + (isDone(c) ? 'done' : c.kind === 'add' ? 'review' : ''), text:isDone(c) ? '반영됨' : c.kind === 'add' ? '추가 제안' : '코멘트' }), h('span', { text:ago(c.at) }));
+  const head = h('div', { class:'cm-head' }, h('b', { text:c.byName || nameOf(c.by) }), h('span', { class:'chip ' + (isDone(c) ? 'done' : c.kind === 'add' ? 'review' : ''), text:isDone(c) ? '반영됨' : c.kind === 'add' ? '추가 제안' : '코멘트' }), h('span', { text:ago(c.at) }));
   if (S.me && c.by === S.me.id && canWrite()) head.append(armed('삭제', '한 번 더 누르면 삭제', async () => { try { await S.db.doc('comments/' + c.id).delete(); } catch (e) { toast('삭제하지 못했어.'); } }));
   const body = h('div', null, head, h('div', { class:'cm-text', text:c.text })); const r = replyOf(c); if (r) body.append(h('div', { class:'answer', style:'margin-top:4px' }, h('b', { text:'AI · ' }), r));
   return h('div', { class:'cm' }, avatar(c.by), body);
@@ -607,7 +607,7 @@ function compose(id){
 function renderTalk(){
   $('cntTalk').textContent = S.comments.filter(c => !isDone(c)).length || '';
   const rec = S.comments.filter(c => c.phase !== 'all').sort((a,b) => b.at - a.at).slice(0, 10);
-  $('recentTalk').replaceChildren(...(rec.length ? rec.map(c => h('a', { href:'#' + c.phase, onclick:(e) => { e.preventDefault(); S.open[c.phase] = true; renderItems(); goTo(c.phase); } }, h('small', { text:label(c.phase) + ' · ' + nameOf(c.by) + ' · ' + ago(c.at) }), clip(c.text, 90))) : [h('div', { class:'empty', text:'아직 없어.' })]));
+  $('recentTalk').replaceChildren(...(rec.length ? rec.map(c => h('a', { href:'#' + c.phase, onclick:(e) => { e.preventDefault(); S.open[c.phase] = true; renderItems(); goTo(c.phase); } }, h('small', { text:label(c.phase) + ' · ' + (c.byName || nameOf(c.by)) + ' · ' + ago(c.at) }), clip(c.text, 90))) : [h('div', { class:'empty', text:'아직 없어.' })]));
 }
 // re-rendering must not steal the cursor from a comment box someone is typing in
 function keepFocus(fn){ const a = document.activeElement, id = a && a.id && a.id.startsWith('ta-') ? a.id : null, s = id ? [a.selectionStart, a.selectionEnd] : null; fn(); if (id) { const t = $(id); if (t) { t.focus(); try { t.setSelectionRange(s[0], s[1]); } catch (e) {} } } }
