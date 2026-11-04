@@ -38,6 +38,7 @@ h1{font-family:var(--f-disp);font-weight:400;font-size:clamp(28px,5vw,40px);line
 .lead{color:var(--dim);margin:0;max-width:64ch}
 .links{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .who-me{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+#pb-share{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
 .me{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--dim)}
 .av{width:28px;height:28px;border-radius:50%;flex:none;background:var(--chip);display:inline-grid;place-items:center;font-size:12px;font-weight:700;color:var(--dim);overflow:hidden}
 .av img{width:100%;height:100%;display:block}
@@ -63,6 +64,11 @@ h3{font-size:12px;letter-spacing:.06em;color:var(--dim);margin:0 0 8px;font-weig
 @media (max-width:760px){.split{grid-template-columns:1fr}}
 .chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:1px 9px;border-radius:999px;background:var(--chip);color:var(--dim);white-space:nowrap}
 .chip.work{color:var(--accent)}.chip.review{color:var(--amber)}.chip.done{color:var(--mint)}.chip.open{color:var(--blue)}
+.chip.bad{color:var(--accent)}.chip.warn{color:var(--amber)}.chip.ok{color:var(--mint)}
+.ver{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:12px 14px}.ver .grow{flex:1 1 220px;min-width:0}.ver code{font-size:12px;overflow-wrap:anywhere}
+.ver .meta{color:var(--dim);font-size:12px;overflow-wrap:anywhere}.ver .acts{display:flex;flex-wrap:wrap;gap:6px;flex-basis:100%}
+.ver-alert{border-color:var(--amber);margin-bottom:10px}
+.ver pre.cmds{flex-basis:100%;margin:0;padding:10px 12px;border-radius:10px;background:var(--chip);font:12px/1.6 ui-monospace,Consolas,monospace;overflow-x:auto;white-space:pre;user-select:all}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--line);flex:none;display:inline-block}
 .dot.on{background:var(--accent);animation:pulse 1.6s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.35}}@media (prefers-reduced-motion:reduce){.dot.on{animation:none}}
@@ -73,7 +79,9 @@ h3{font-size:12px;letter-spacing:.06em;color:var(--dim);margin:0 0 8px;font-weig
 .mod-top{display:flex;align-items:center;gap:8px}.mod-top b{font-size:15px;overflow-wrap:anywhere}
 .mod .holder{display:flex;align-items:center;gap:8px;font-size:14px}
 .mod .note{font-size:14px;overflow-wrap:anywhere}
-.mod .meta{font-size:12px;color:var(--dim)}
+.mod .meta{font-size:12px;color:var(--dim)}.mod-desc{font-size:14px;overflow-wrap:anywhere}
+/* long notes stay two lines so the cards keep one height (the full text is the tooltip) */
+.mod .note,.mod.free .meta{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .mod.free .holder{color:var(--dim)}
 
 /* ai tasks on 현황 (ask-*) */
@@ -87,6 +95,7 @@ select{min-height:40px;border:1px solid var(--line);border-radius:10px;backgroun
 .ask-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--dim)}
 .ask-head b{color:var(--fg)}
 .ask-text{white-space:pre-wrap;overflow-wrap:anywhere}
+.qa{display:flex;flex-direction:column;gap:4px;margin-top:4px;min-width:200px}.qa-row{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}.qa textarea{width:100%;box-sizing:border-box;font:inherit;font-size:13px}.qa .row{justify-content:flex-end;gap:6px}.qa-btn{align-self:flex-start;font-size:12px}
 .answer{border-left:3px solid var(--mint);padding:4px 10px;font-size:14px;background:var(--chip);border-radius:0 8px 8px 0;white-space:pre-wrap;overflow-wrap:anywhere}
 .x{margin-left:auto;border:0;background:none;color:var(--dim);cursor:pointer;font-size:12px;padding:4px 6px}
 .x.armed{color:var(--accent)}
@@ -132,7 +141,15 @@ ul.todo{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
 ul.todo li{font-size:14px}
 .p-tag{font-size:11px;padding:0 6px;border-radius:6px;margin-left:4px;border:1px solid currentColor;opacity:.85;white-space:nowrap}
 .doneline{margin-top:10px;padding:8px 12px;border-radius:10px;background:var(--chip);font-size:14px}
-.decide{margin-top:8px;font-size:13px;color:var(--dim)}.decide b{color:var(--amber)}
+.decide{margin-top:8px;font-size:14px;padding:8px 12px;border-radius:10px;border:1px dashed var(--amber)}.decide b{color:var(--amber)}.decide ul,.doneline ul{margin:4px 0 0;padding-left:18px}
+.phase .card h3{font-size:14px;margin:14px 0 6px;color:var(--dim)}
+ul.plan{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+ul.plan>li{font-size:14px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;overflow-wrap:anywhere}
+ul.plan summary{cursor:pointer;color:var(--fg);font-size:14px}
+ol.log{margin:8px 0 2px;padding-left:22px;display:grid;gap:5px;font-size:13px;color:var(--dim)}
+ol.log li.dec{color:var(--fg)}ol.log li.dec::marker{color:var(--amber)}
+ul.dlist{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px;font-size:14px}
+.dchip{display:inline-block;min-width:38px;font-size:11px;padding:0 6px;border-radius:6px;background:var(--chip);margin-right:6px;color:var(--dim);text-align:center}
 .wstate{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;margin:4px 0 8px;padding:6px 10px;border-radius:8px;background:var(--chip)}
 .wstate b{color:var(--accent)}.wstate.review b{color:var(--amber)}
 .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr));gap:8px;margin-bottom:16px}
@@ -143,7 +160,16 @@ ul.todo li{font-size:14px}
 .spec{margin-bottom:12px}
 .spec p{margin:6px 0}.spec .rule{border-left:3px solid var(--accent);padding:4px 10px;background:var(--chip);border-radius:0 8px 8px 0}
 .spec .small{font-size:13px;color:var(--dim)}.spec h4{font-size:15px;margin:14px 0 4px}
-.tbl{overflow-x:auto;margin:8px 0}table{border-collapse:collapse;font-size:14px;min-width:100%}th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{background:var(--chip)}
+.tbl{overflow-x:auto;margin:8px 0}
+.body ol{margin:6px 0;padding-left:22px}.body li.sub{margin-left:18px;list-style:circle}.body hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+.body h4{font-size:15px;margin:16px 0 4px}.body h4.h2{font-size:17px;margin-top:20px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.body .rule{border-left:3px solid var(--accent);padding:4px 10px;background:var(--chip);border-radius:0 8px 8px 0;margin:8px 0}.body .small{font-size:13px;color:var(--dim)}
+details.fold{margin:10px 0;border:1px solid var(--line);border-radius:10px;padding:6px 12px}details.fold>summary{cursor:pointer;font-weight:600;color:var(--dim)}details.fold[open]>summary{margin-bottom:6px}
+.pgal{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin:10px 0}.pgal.one{grid-template-columns:minmax(0,640px)}
+.pgal figure{margin:0;background:var(--chip);border:1px solid var(--line);border-radius:10px;overflow:hidden}.pgal a{display:block}
+.pgal img{width:100%;aspect-ratio:4/3;object-fit:contain;display:block;background:#0002}.pgal.one img{aspect-ratio:auto}
+.pgal figcaption{font-size:12px;padding:4px 8px;color:var(--dim);overflow-wrap:anywhere}
+img.pthumb{height:64px;width:auto;max-width:120px;object-fit:contain;vertical-align:middle;border-radius:6px;background:#0002}table{border-collapse:collapse;font-size:14px;min-width:100%}th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{background:var(--chip)}
 
 /* comment threads */
 .tbar{margin-top:12px;border-top:1px dashed var(--line);padding-top:8px}
@@ -166,6 +192,12 @@ code,.files code{font-family:var(--f-mono);font-size:12px;background:var(--chip)
 .links-row a{text-decoration:none}
 pre.md{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.55 var(--f-mono);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0 0;max-height:200px;overflow:auto}
 details summary{cursor:pointer;color:var(--dim);font-size:13px}
+.con-card>summary{color:var(--fg);font-size:15px}.con-card>summary .dim{font-size:13px}.con-first{font-size:13px;color:var(--dim);margin:4px 0 0 16px;overflow-wrap:anywhere}
+.con-card[open] .con-first{display:none}.body.con p{margin:4px 0;font-size:14px;overflow-wrap:anywhere}
+details.handoff{border-left:3px solid var(--mint);background:var(--chip);border-radius:0 8px 8px 0;padding:4px 10px;font-size:13px}details.handoff.stop{border-left-color:var(--amber)}
+details.handoff summary{color:var(--fg)}.ho-text{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:4px}
+ul.checks{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:2px;font-size:13px}ul.checks .mk{display:inline-block;width:14px;color:var(--dim)}
+ul.checks li.ok .mk{color:var(--mint)}ul.checks li.bad .mk{color:var(--accent)}ul.checks li.bad{font-weight:600}
 
 /* map */
 .map-wrap{overflow-x:auto;margin-top:10px}
@@ -178,6 +210,9 @@ details summary{cursor:pointer;color:var(--dim);font-size:13px}
 .banner{padding:8px 12px;border-radius:10px;background:var(--chip);font-size:14px;margin-bottom:8px}
 .toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:10px;font-size:14px;z-index:60;max-width:calc(100vw - 32px)}
 footer{margin-top:40px;color:var(--dim);font-size:13px}
+#customTitle{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;max-width:100%}
+#customCode{display:block;width:100%;min-height:340px;tab-size:2;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:14px;font:13px/1.6 var(--f-mono);resize:vertical}
+#customPage iframe,#customPreview iframe{display:block;width:100%;height:65vh;min-height:400px;border:1px solid var(--line);border-radius:12px;background:white}
 </style>
 </head>
 <body>
@@ -198,10 +233,13 @@ footer{margin-top:40px;color:var(--dim);font-size:13px}
     <button data-v="todo">할 일 <span class="cnt" id="cntTodo"></span></button>
     <button data-v="road">로드맵</button>
     <button data-v="spec" id="tab-spec">상세 설계</button>
+    <span id="xtabs" style="display:contents"></span>
+    <span id="customNav" style="display:contents"></span>
     <button data-v="mods">모듈 <span class="cnt" id="cntCrq"></span></button>
     <button data-v="talk">코멘트 <span class="cnt" id="cntTalk"></span></button>
     <button data-v="memo">메모장</button>
     <button data-v="act">활동</button>
+    <button data-v="tools">도구</button>
   </nav>
 
   <!-- 현황 -->
@@ -209,6 +247,11 @@ footer{margin-top:40px;color:var(--dim);font-size:13px}
     <div class="block">
       <div class="block-head"><h2>지금 작업</h2><span class="dim" id="nowSum"></span></div>
       <div class="grid" id="nowGrid"></div>
+    </div>
+    <div class="block">
+      <div class="block-head"><h2>코드 버전</h2><span class="dim" id="codeSum"></span></div>
+      <div class="card ver-alert" id="codeAlert" role="status" hidden></div>
+      <div class="list" id="codeList"></div>
     </div>
     <div class="split">
       <div class="block">
@@ -241,6 +284,7 @@ footer{margin-top:40px;color:var(--dim);font-size:13px}
         <label class="dim" style="font-size:13px">마감<input type="date" id="tDue" style="width:100%"></label>
         <label class="dim" style="font-size:13px">단계·설계<select id="tItem" style="width:100%"></select></label>
       </div>
+      <textarea id="tCheck" rows="2" placeholder="완료 기준 (선택, 한 줄에 하나) — 예: 저장 후 다시 열어도 그대로 / 테스트 통과. AI가 끝낼 때 기준마다 확인해서 적어" aria-label="완료 기준"></textarea>
       <div class="row"><label class="check grow"><input type="checkbox" id="tAi"> 담당자의 AI에게 맡기기 (AI가 다음 작업 때 보고 처리해)</label>
         <button class="btn ghost sm" type="button" id="tCancel">취소</button><button class="btn sm" type="button" id="tSave" disabled>추가</button></div>
     </div>
@@ -260,6 +304,10 @@ footer{margin-top:40px;color:var(--dim);font-size:13px}
   </section>
 
   <!-- 상세 설계 -->
+  <section class="view narrow" id="v-x" hidden>
+    <div id="xList"></div>
+  </section>
+
   <section class="view narrow" id="v-spec" hidden>
     <div id="specList"></div>
     <div class="empty" id="emptySpec" hidden>아직 상세 설계가 없어.</div>
@@ -278,6 +326,10 @@ footer{margin-top:40px;color:var(--dim);font-size:13px}
     <div class="block">
       <div class="block-head"><h2>연결부</h2><span class="dim" style="font-size:13px">모듈끼리 약속한 규격. AI는 다른 모듈 코드 대신 이걸 보고 작업해</span></div>
       <div class="list" id="conList"></div>
+    </div>
+    <div class="block">
+      <div class="block-head"><h2>파일 구조</h2><span class="dim" style="font-size:13px">어느 파일을 어느 모듈이 맡는지</span></div>
+      <div class="card" id="fileMap"></div>
     </div>
   </section>
 
@@ -305,10 +357,28 @@ footer{margin-top:40px;color:var(--dim);font-size:13px}
     <div class="card" id="actList"></div>
   </section>
 
+  <section class="view" id="v-tools" hidden>
+    <h2>프로젝트 탭 만들기</h2>
+    <p class="dim">프로젝트에 필요한 화면을 HTML/CSS/JS로 구성해요. 저장하면 위쪽에 새 탭이 생겨요.</p>
+    <p id="customToolsHelp" class="dim" hidden>탭 추가와 코드 수정은 관리자가 할 수 있어요.</p>
+    <div id="customToolsAdmin" hidden>
+      <div class="row block"><button class="btn sm" id="customNew">+ 새 탭</button><div class="row" id="customList"></div></div>
+      <div class="card">
+        <div class="row"><label>탭 이름 <input id="customTitle" maxlength="40"></label>
+          <select id="customTemplate" aria-label="시작 예제"><option value="">시작 예제 선택</option><option value="notes">프로젝트 노트</option><option value="checklist">체크리스트</option><option value="character">캐릭터 설정</option><option value="blank">빈 화면</option></select></div>
+        <p class="dim"><small>HTML 안에 &lt;style&gt;과 &lt;script&gt;를 함께 쓸 수 있어요. 입력란에 <code>data-key="이름"</code>을 붙이면 자동 저장돼요. JS에서는 <code>pb.state</code>로 읽고 <code>await pb.save({...pb.state, count:1})</code>로 저장해요. 탭 데이터는 프로젝트 멤버와 공유돼요.</small></p>
+        <label for="customCode">HTML / CSS / JavaScript</label><textarea id="customCode" spellcheck="false" aria-describedby="customStatus"></textarea>
+        <div class="row" style="margin-top:12px"><button class="btn ghost sm" id="customRun">미리보기 실행</button><button class="btn sm" id="customSave">탭 저장</button><button class="btn ghost sm" id="customDelete" disabled>탭 삭제</button><span id="customStatus" role="status" class="dim"></span></div>
+      </div>
+      <h3 style="margin-top:20px">미리보기 · 입력은 저장되지 않아요</h3><div id="customPreview"></div>
+    </div>
+  </section>
+  <section class="view" id="v-custom" hidden><div class="block-head"><h2 id="customPageTitle"></h2><button class="btn ghost sm" id="customEdit" hidden>HTML 편집</button></div><div id="customPage"></div></section>
   <footer id="footer"></footer>
 </div>
 
 <script>window.PB_HUBPAGE = true;</script>
+<!-- CUSTOM_TABS_SCRIPT -->
 <script>
 (function(){
 const $ = (id) => document.getElementById(id);
@@ -324,8 +394,16 @@ function h(tag, a, ...kids){
   return e;
 }
 // inline **bold** only
-function rich(t){const f=document.createDocumentFragment();String(t||'').split(/(\*\*[^*]+\*\*)/).forEach(p=>{if(/^\*\*[^*]+\*\*$/.test(p))f.append(h('b',{text:p.slice(2,-2)}));else if(p)f.append(p);});return f;}
-const S = { tasks:[], me:null, team:{}, info:null, items:[], comments:[], replies:{}, log:[], claims:{}, modules:[], free:[], contracts:[], crq:[], memo:null, memoDirty:false, open:{}, kind:{}, draft:{}, tab:'now', db:null };
+// pictures: "img/<name>" = uploaded to this board (members only), or an https address
+function imgSrc(s){ s = String(s || ''); return /^img\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(s) ? (window.PB_BASE || '.') + '/' + s : /^https:\/\/[^\s"'<>]+$/.test(s) ? s : null; }
+function rich(t){const f=document.createDocumentFragment();String(t||'').split(/(PR\s?#\d+|\*\*[^*]+\*\*|~~[^~]+~~|`[^`]+`|!\[[^\]]*\]\([^)\s]+\)|\[[^\]]+\]\([^)\s]+\))/).forEach(p=>{let m;
+  if((m=p.match(/^PR\s?#(\d+)$/))&&S.me&&S.me.repo)f.append(h('a',{href:`https://github.com/${S.me.repo}/pull/${m[1]}`,target:'_blank',rel:'noopener',text:p}));
+  else if(/^\*\*[^*]+\*\*$/.test(p))f.append(h('b',{text:p.slice(2,-2)}));else if(/^`[^`]+`$/.test(p))f.append(h('code',{text:p.slice(1,-1)}));
+  else if(/^~~[^~]+~~$/.test(p))f.append(h('s',{class:'dim',text:p.slice(2,-2)}));
+  else if((m=p.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/)))f.append(/^https:\/\//.test(m[2])?h('a',{href:m[2],target:'_blank',rel:'noopener',text:m[1]}):h('u',{text:m[1],title:m[2]})); // a file in the repo: name only
+  else if((m=p.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/))){const src=imgSrc(m[2]);f.append(src?h('a',{href:src,target:'_blank',rel:'noopener'},h('img',{class:'pthumb',src,alt:m[1],title:m[1],loading:'lazy'})):m[1]);}
+  else if(p)f.append(p);});return f;}
+const S = { tasks:[], me:null, team:{}, info:null, items:[], comments:[], replies:{}, log:[], claims:{}, modules:[], free:[], contracts:[], crq:[], handoff:{}, local:[], main:null, memo:null, memoDirty:false, open:{}, kind:{}, draft:{}, qa:{}, tab:'now', db:null };
 const B = window.PB_BASE || '';
 async function api(path, method, body){
   const r = await fetch(B + path, { method: method || 'GET', credentials:'same-origin', headers:{'Content-Type':'application/json','X-PB':'1'}, body: body ? JSON.stringify(body) : undefined });
@@ -353,12 +431,18 @@ function avatar(id, name){
 }
 
 // ---------- tabs ----------
-const VIEWS = ['now','todo','road','spec','mods','talk','memo','act'];
-function show(v){ if(!VIEWS.includes(v)) v='now'; S.tab=v; for(const k of VIEWS) $('v-'+k).hidden = k!==v;
+const VIEWS = ['now','todo','road','spec','mods','talk','memo','act','x','tools','custom'];
+function show(v){ v = String(v || '');
+  if (v.startsWith('c:')) {}
+  else if (v.startsWith('x:')) { if (!S.items.some(x => x.tab === v.slice(2))) { S.want = v; v = 'now'; } } // items not loaded yet: open it when they are
+  else if (!VIEWS.includes(v) || v === 'x') v = 'now';
+  S.tab = v; const sec = v.startsWith('c:') ? 'custom' : v.startsWith('x:') ? 'x' : v; for(const k of VIEWS) $('v-'+k).hidden = k!==sec;
+  if (sec === 'x') renderXList();
+  if (sec === 'custom' && S.db) PB_CUSTOM.open(v.slice(2));
   document.querySelectorAll('#tabs button').forEach(b => { b.classList.toggle('on', b.dataset.v===v); b.setAttribute('aria-current', b.dataset.v===v ? 'page' : 'false'); });
-  try{ localStorage.setItem('pb-hub-tab:'+B, v); }catch(e){}
+  try{ if (!S.want) localStorage.setItem('pb-hub-tab:'+B, v); }catch(e){}
 }
-document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => { show(b.dataset.v); window.scrollTo({top:0}); }));
+$('tabs').addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (b) { S.want = null; show(b.dataset.v); window.scrollTo({top:0}); } });
 document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => { show(b.dataset.go); window.scrollTo({top:0}); }));
 // ?tab=mods opens a tab directly (shareable); otherwise the tab you had open last time
 try{ const q = new URLSearchParams(location.search).get('tab'), t = q || localStorage.getItem('pb-hub-tab:'+B); if(t) show(t); }catch(e){}
@@ -388,20 +472,77 @@ function renderNow(){
   if (!mods.length) { $('nowGrid').replaceChildren(h('div', { class:'empty', text:'아직 모듈이 없어. 관리자가 모듈과 연결부를 넣으면 여기서 누가 어디를 작업하는지 보여.' })); return; }
   $('nowGrid').replaceChildren(...mods.map(m => {
     const c = cl[m.id];
-    if (!c) return h('div', { class:'card mod free' }, h('div', { class:'mod-top' }, h('span', { class:'dot' }), h('b', { text:m.id })), h('div', { class:'holder', text:'비어 있음' }), m.note ? h('div', { class:'meta', text:m.note }) : null);
+    if (!c) return h('div', { class:'card mod free' }, h('div', { class:'mod-top' }, h('span', { class:'dot' }), h('b', { text:m.id })), h('div', { class:'holder', text:'비어 있음' }), m.note ? h('div', { class:'meta', text:m.note, title:m.note }) : null);
     const with_ = (c.modules || []).filter(x => x !== m.id);
     const left = Math.max(0, Math.round((c.until - Date.now()) / 6e4));
     const ask = c.id && S.tasks.find(a => a.claim === c.id && a.status === 'doing');
     return h('div', { class:'card mod busy' },
       h('div', { class:'mod-top' }, h('span', { class:'dot on' }), h('b', { text:m.id }), with_.length ? h('span', { class:'chip', text:'+ ' + with_.join(', ') }) : null),
       h('div', { class:'holder' }, avatar(c.by, c.name), h('span', null, h('b', { text:c.name }), c.agent ? ' · ' + c.agent : '')),
-      c.note ? h('div', { class:'note', text:c.note }) : null,
+      c.note ? h('div', { class:'note', text:c.note, title:c.note }) : null,
       ask ? h('div', { class:'meta', text:'할 일 처리 중: ' + clip(ask.title, 60) }) : null,
       h('div', { class:'meta', text:`${hhmm(c.since)}부터 · ${left}분 뒤 자동 해제${c.task ? ' · ' + c.task : ''}` }));
   }));
 }
 
 // ---------- tasks (할 일) — ai:true hands one to the assignee's AI ----------
+// ---------- code versions: each computer's git state (sent by git hooks / `git pb-report`) vs GitHub main ----------
+function verChips(l){
+  const m = S.main, out = [];
+  if (m && l.head === m.sha && !l.dirtyN) return [['ok', '최신']];
+  const moved = m && l.main && l.main !== m.sha && l.head !== m.sha;   // main got new commits after this report
+  if (moved) out.push(['bad', l.behind ? `GitHub보다 ${l.behind}커밋+ 뒤` : 'GitHub에 새 커밋 있음']);
+  else if (l.behind > 0) out.push(['bad', `GitHub보다 ${l.behind}커밋 뒤`]);
+  if (l.unpushed) out.push(['bad', `안 올린 커밋 ${l.unpushed}`]);
+  else if (l.ahead) out.push(['warn', `main에 아직 안 들어간 커밋 ${l.ahead} (PR 대기)`]);
+  if (l.dirtyN) out.push(['warn', `커밋 안 한 수정 ${l.dirtyN}개`]);
+  return out.length ? out : [['ok', '최신']];
+}
+const folderOf = (l) => (l.dir ? l.dir.split('/').filter(Boolean).pop() : '') || '폴더 ?';
+// the web page can't touch your computer: it shows the git commands to run in that folder
+function verCmds(l, behind){
+  // git gives C:/… on Windows: cd "C:/…" works in PowerShell, cmd (same drive) and Git Bash alike
+  const L = l.dir ? [`cd "${l.dir}"`] : ['# 이 컴퓨터의 저장소 폴더로 이동한 뒤'];
+  if (behind) L.push('# 최신 main 받기', l.dirtyN ? 'git stash        # 커밋 안 한 수정 잠깐 보관' : null, 'git switch main', 'git pull', l.dirtyN ? 'git stash pop' : null);
+  if (l.unpushed || l.dirtyN) L.push(L.length > 1 ? '' : null, '# 내 변경 올리기 (PR → 기획판이 검사 후 머지)', l.dirtyN ? 'git switch -c my-change' : null, l.dirtyN ? 'git add -A' : null, l.dirtyN ? 'git commit -m "무엇을 바꿨는지"' : null, 'git push -u origin HEAD', 'gh pr create --fill');
+  L.push('', 'git pb-report    # 기획판에 지금 상태 알리기');
+  return L.filter(x => x != null).join('\n');
+}
+function renderCode(){
+  const m = S.main, me = S.me && S.me.id;
+  $('codeSum').textContent = m ? `GitHub main ${m.sha.slice(0, 7)} · ${clip(m.msg, 40)} · ${ago(m.at)}` : 'GitHub 연결 전';
+  // one row per member × computer × folder; a copy quiet for a week (deleted folder, old worktree) drops off
+  const L = S.local.filter(l => Date.now() - l.at < 7 * 864e5).sort((a, b) => (b.by === me) - (a.by === me) || b.at - a.at);
+  if (!L.length) { $('codeAlert').hidden = true; $('codeList').replaceChildren(h('div', { class:'empty', text:'아직 버전을 알려 온 컴퓨터가 없어. 각 컴퓨터에 git pb-report를 설정하면(hub/README.md 7번) 커밋·pull·push 때마다 여기 떠.' })); return; }
+  // the game itself is always the latest on the web; a local copy only needs updating when you work in it,
+  // so the alert is for work that isn't on GitHub yet (or that sits on an old main)
+  const work = L.filter(l => l.by === me && (l.unpushed || l.dirtyN));
+  $('codeAlert').hidden = !work.length;
+  if (work.length) $('codeAlert').replaceChildren(...work.map(l => h('div', null, h('b', { text:`${l.host} · ${folderOf(l)}: ` }), verChips(l).filter(c => c[0] !== 'ok').map(c => c[1]).join(' · '))),
+    h('div', { class:'dim', style:'font-size:13px;margin-top:4px', text:'아직 GitHub에 없는 작업이 있어. 아래 그 폴더 줄의 명령어를 복사해서 터미널에서 올려 줘.' }));
+  S.cmdOpen = S.cmdOpen || {};
+  $('codeList').replaceChildren(...L.map(l => {
+    const chips = verChips(l), behind = chips.some(c => c[1].startsWith('GitHub'));
+    let acts = null;
+    if (l.by === me && (behind || l.unpushed || l.dirtyN)) {
+      const cmds = verCmds(l, behind), id = l._doc, pre = h('pre', { class:'cmds', text:cmds, hidden: !S.cmdOpen[id] });
+      acts = h('div', { class:'acts' },
+        h('button', { class:'btn sm', type:'button', text:'명령어 보기', 'aria-expanded': String(!!S.cmdOpen[id]), onclick: (e) => { S.cmdOpen[id] = pre.hidden; pre.hidden = !pre.hidden; e.currentTarget.setAttribute('aria-expanded', String(!pre.hidden)); } }),
+        h('button', { class:'btn ghost sm', type:'button', text:'복사', onclick: () => navigator.clipboard.writeText(cmds.split('\n').filter(x => x && !x.startsWith('#')).map(x => x.replace(/\s+#.*$/, '')).join('\n')).then(() => toast('복사했어. 그 폴더의 터미널에 붙여넣어.'), () => { S.cmdOpen[id] = true; pre.hidden = false; toast('복사가 막혀 있어. 명령어를 직접 골라 복사해 줘.'); }) }),
+        behind && !l.unpushed && !l.dirtyN ? h('span', { class:'dim', style:'font-size:12px', text:'게임은 웹에서 늘 최신이야. 이 폴더에서 작업할 때만 받으면 돼.' }) : null,
+        pre);
+    }
+    return h('div', { class:'card ver' }, avatar(l.by, l.name),
+      h('div', { class:'grow' }, h('div', null, h('b', { text:l.name }), ` · ${l.host} · `, h('span', { text:folderOf(l), title:l.dir || '' }), ' · ', h('code', { text:`${l.branch || '?'} @ ${(l.head || '').slice(0, 7)}` })),
+        h('div', { class:'meta', text:`${ago(l.at)} 기준${l.dirty.length ? ' · 수정: ' + clip(l.dirty.join(', '), 120) : ''}` })),
+      chips.map(([k, t]) => h('span', { class:'chip ' + k, text:t })),
+      l.by === me || isAdmin() ? h('button', { class:'btn ghost sm', type:'button', text:'지우기', title:'지운 폴더나 임시 폴더의 줄을 없애. 그 폴더가 다시 알리면 다시 생겨.', onclick: async () => {
+        if (!confirm(`${l.host} · ${folderOf(l)} 줄을 지울까?`)) return;
+        try { await api('/api/local-del', 'POST', { id: l._doc }); S.local = S.local.filter(x => x._doc !== l._doc); renderCode(); } catch (e) { toast('못 지웠어: ' + e.message); } } }) : null,
+      acts);
+  }));
+}
+
 function memberOptions(sel, { mine, none, ai } = {}){
   const keep = sel.dataset.picked ? sel.value : null, opts = [];
   if (S.me) opts.push(h('option', { value:S.me.id, text:ai ? '내 AI' : '나' }));
@@ -425,8 +566,8 @@ $('tCancel').addEventListener('click', () => { $('todoForm').hidden = true; });
 $('tTitle').addEventListener('input', () => { $('tSave').disabled = !$('tTitle').value.trim(); });
 $('tSave').addEventListener('click', async () => {
   const title = $('tTitle').value.trim(); if (!title) return; $('tSave').disabled = true;
-  try { await S.db.collection('tasks').add({ title, text: $('tText').value.trim(), to: $('tTo').value, due: $('tDue').value, item: $('tItem').value, ai: $('tAi').checked });
-    $('tTitle').value = ''; $('tText').value = ''; $('tDue').value = ''; $('tAi').checked = false; $('todoForm').hidden = true; toast('할 일을 추가했어'); }
+  try { await S.db.collection('tasks').add({ title, text: $('tText').value.trim(), to: $('tTo').value, due: $('tDue').value, item: $('tItem').value, ai: $('tAi').checked, check: $('tCheck').value });
+    $('tTitle').value = ''; $('tText').value = ''; $('tCheck').value = ''; $('tDue').value = ''; $('tAi').checked = false; $('todoForm').hidden = true; toast('할 일을 추가했어'); }
   catch (e) { toast('추가하지 못했어: ' + e.message); $('tSave').disabled = false; }
 });
 try { $('todoWho').value = localStorage.getItem('pb-hub-who:' + B) || 'all'; } catch (e) {}
@@ -444,9 +585,11 @@ function taskCard(t, compact){
     t.item ? h('a', { href:'#' + t.item, text:label(t.item), onclick:(e) => { e.preventDefault(); goTo(t.item); } }) : null,
     compact ? h('span', { class:'chip ' + (TST[t.status] || ['',''])[1], text:(TST[t.status] || [t.status])[0] }) : null);
   const box = h('div', { class:'task' }, h('div', { class:'t-title', text:t.title || t.text || '' }), (t.text && t.title) ? h('div', { class:'dim', style:'font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere', text:clip(t.text, 200) }) : null, meta);
+  if (t.check && t.check.length) box.append(h('div', { class:'t-check' }, h('small', { class:'dim', text:'완료 기준' + (t.checks ? ' · ' + t.checks.filter(x => x.ok).length + '/' + t.check.length + ' 확인' : '') }), checkList(t.check, t.checks)));
+  if (t.handoff && t.status !== 'done') box.append(handoffBox(t.handoff, '인계 메모'));
   if (t.status === 'doing' && t.workerName) box.append(h('div', { class:'dim', style:'font-size:12px', text:t.workerName + '의 AI가 작업 중' }));
   if (t.note && t.status === 'todo') box.append(h('div', { class:'dim', style:'font-size:12px', text:t.note }));
-  if (t.reply) box.append(h('div', { class:'answer' }, h('b', { text:(t.workerName || 'AI') + ' · ' }), t.reply));
+  if (t.reply) box.append(h('div', { class:'answer' }, h('span', { class:'chip ai', text:'AI' }), ' ', h('b', { text:(t.workerName ? t.workerName + '의 AI' : 'AI') + ' · ' }), t.reply));
   if (t.pr && /^https:\/\//.test(t.pr)) box.append(h('a', { href:t.pr, target:'_blank', rel:'noopener', class:'dim', style:'font-size:12px', text:'PR 보기 ↗' }));
   if (!compact && mayEdit(t)) {
     const k = TORDER.indexOf(t.status), act = h('div', { class:'t-act' });
@@ -485,9 +628,10 @@ const LOG_ST = { working:['작업 중','work'], review:['확인 부탁','review'
 function actRow(e){
   const [lab, cls] = LOG_ST[e.state] || [e.state || '', ''];
   const meta = h('div', { class:'meta' }, lab ? h('span', { class:'chip ' + cls, text:lab }) : null, e.module ? h('span', { text:'모듈 ' + String(e.module).split(',').join(', ') }) : null, e.phase ? h('span', { text:label(e.phase) }) : null);
+  if (e.checks && e.checks.length) { const ok = e.checks.filter(x => x.ok).length; meta.append(h('span', { class:'chip ' + (ok === e.checks.length ? 'done' : 'review'), text:'완료 기준 ' + ok + '/' + e.checks.length })); }
   if (e.pr && /^https:\/\//.test(e.pr)) meta.append(h('a', { href:e.pr, target:'_blank', rel:'noopener', text:'PR ↗' }));
   const what = e.text && e.state !== 'working' ? e.text : (e.note || e.text || '');
-  return h('div', { class:'act' }, h('div', { class:'t', text:ago(e.at) }), h('div', { class:'body' }, h('div', { class:'what' }, rich(what)), e.text && e.note && e.state !== 'working' ? h('div', { class:'dim', style:'font-size:12px', text:e.note }) : null, meta));
+  return h('div', { class:'act' }, h('div', { class:'t', text:ago(e.at) }), h('div', { class:'body' }, h('div', { class:'what' }, rich(what)), e.text && e.note && e.state !== 'working' ? h('div', { class:'dim', style:'font-size:12px', text:e.note }) : null, e.checks && e.checks.some(x => !x.ok) ? checkList(e.checks.map(x => x.what || ''), e.checks) : null, meta));
 }
 function renderActivity(){
   const L = S.log.filter(e => e.text || e.note).sort((a,b) => (b.at||0) - (a.at||0));
@@ -502,29 +646,82 @@ function renderSide(){
 }
 
 // ---------- plan items: markdown bodies ----------
-// phase: plain lines = goal · "- text #tag" = to-do · "완료: …" = done line · "? …" = to decide
+// phase (the same lines the AI reads, sorted into sections for people):
+//   plain lines = goal · "> …" = note · "- text #tag" = to-do, with its "  ㄴ …" / indented lines = that to-do's progress log
+//   "끝 기준: …" (or "완료: …" without a date) = what done means · "완료: … (10/29, PR #n)" = a finished piece
+//   "결정: …" = decision · "? …" = open question
 // spec:  "- " list · "> " callout · "| a | b |" table · "※ " small note · "## " subheading · other lines = paragraph
-function parsePhase(md){const o={goal:'',todo:[],done:'',decide:[]},g=[];
+const DATED = /\b\d{1,2}\/\d{1,2}\b|PR\s*#\d+/;
+const dateOf = (t) => { const m = String(t).match(/\b(\d{1,2})\/(\d{1,2})\b/); return m ? +m[1] * 100 + +m[2] : 0; };
+function parsePhase(md){const o={goal:'',notes:[],log:[],crit:[],todo:[],done:[],decided:[],decide:[]},g=[];let cur=null,quote=false;
+  const dated=(text,i)=>({text,date:dateOf(text),i}),newest=(a,b)=>b.date-a.date||b.i-a.i;
   for(const raw of String(md).split('\n')){const l=raw.trim();let m;if(!l)continue;
-    if((m=l.match(/^[-*]\s+(.*)$/))){let t=m[1],tag=null;const k=t.match(/\s#([A-Za-z0-9_-]+)$/);if(k){tag=k[1];t=t.slice(0,k.index);}o.todo.push(tag?{text:t,tag}:{text:t});}
-    else if((m=l.match(/^(완료|끝 기준|done)\s*[:：]\s*(.*)$/i)))o.done=m[2];
-    else if((m=l.match(/^\?\s*(.*)$/)))o.decide.push(m[1]);else g.push(l);}
-  o.goal=g.join(' ');return o;}
-function parseSpec(md){const B_=[];let ul=null,tb=null,para=[];const endPara=()=>{if(para.length){B_.push({t:'p',text:para.join(' ')});para=[];}};
-  for(const raw of String(md).split('\n')){const l=raw.trim();let m;
+    const sub=l.match(/^ㄴ\s*(.*)$/)||(cur&&/^\s{2,}\S/.test(raw)&&l.match(/^(?:[-*]\s+)?(.*)$/));
+    if(sub){const t=sub[1];(cur?cur.log:o.log).push({text:t,decide:/^결정\b/.test(t),date:dateOf(t)});continue;}
+    const q=l.match(/^>\s?(.*)$/);if(q){if(quote)o.notes[o.notes.length-1]+=' '+q[1];else o.notes.push(q[1]);quote=true;cur=null;continue;}quote=false;
+    if((m=l.match(/^[-*]\s+(.*)$/))){let t=m[1],tag=null;const k=t.match(/\s#([A-Za-z0-9_-]+)$/);if(k){tag=k[1];t=t.slice(0,k.index);}
+      const nx=t.match(/^다음\s*[:：]\s*(.*)$/);cur={text:nx?nx[1]:t,tag,next:!!nx,log:[]};o.todo.push(cur);continue;}
+    cur=null;
+    if((m=l.match(/^(?:끝 기준|done when)\s*[:：]\s*(.*)$/i)))o.crit.push(m[1]);
+    else if((m=l.match(/^(?:완료|done)\s*[:：]\s*(.*)$/i)))DATED.test(m[1])?o.done.push(dated(m[1],o.done.length)):o.crit.push(m[1]);
+    else if((m=l.match(/^결정\s*(\([^)]*\))?\s*[:：]\s*(.*)$/)))o.decided.push(dated(m[2]+(m[1]?' '+m[1]:''),o.decided.length));
+    else if((m=l.match(/^\?\s*(.*)$/)))o.decide.push(m[1]);
+    else (o.todo.length?o.notes:g).push(l);}
+  o.goal=g.join(' ');o.done.sort(newest);o.decided.sort(newest);return o;}
+// a phase with headings, tables, pictures or folds is a document and shown as one
+const RICH = /^\s*(#{1,6}\s|\||!\[|<details|---\s*$)/m;
+const IMGLINE = /^(!\[[^\]]*\]\([^)\s]+\)\s*)+$/;
+function parseSpec(md,lineMode){const B_=[];let ul=null,tb=null,para=[];const endPara=()=>{if(para.length){B_.push({t:'p',text:para.join(' ')});para=[];}};
+  const lines=String(md).split('\n');
+  for(let i=0;i<lines.length;i++){const raw=lines[i],l=raw.trim();let m;
     if(!l){endPara();ul=tb=null;continue;}
-    if((m=l.match(/^[-*]\s+(.*)$/))){endPara();tb=null;if(!ul){ul={t:'ul',items:[]};B_.push(ul);}ul.items.push(m[1]);continue;}
+    if(/^<!--.*-->$/.test(l))continue;
+    if(/^```/.test(l)){endPara();ul=tb=null;const code=[];for(i++;i<lines.length&&!/^\s*```/.test(lines[i]);i++)code.push(lines[i]);B_.push({t:'code',text:code.join('\n')});continue;}
+    if((m=l.match(/^ㄴ\s*(.*)$/))&&ul){ul.items.push({x:m[1],sub:true});continue;}
+    if((m=l.match(/^<details[^>]*>\s*(?:<summary>(.*?)<\/summary>)?(.*)$/i))){endPara();ul=tb=null;let sum=m[1]||'',depth=1;const inner=[];if(m[2]&&m[2].trim())inner.push(m[2]);
+      for(i++;i<lines.length;i++){const x=lines[i].trim();if(/^<details/i.test(x))depth++;if(/^<\/details>/i.test(x)&&--depth===0)break;const sm=!sum&&!inner.length&&x.match(/^<summary>(.*?)<\/summary>$/i);if(sm){sum=sm[1];continue;}inner.push(lines[i]);}
+      B_.push({t:'fold',sum:sum||'더 보기',blocks:parseSpec(inner.join('\n'),lineMode)});continue;}
+    if(/^<\/?(details|summary)/i.test(l))continue;
+    if(/^-{3,}$/.test(l)){endPara();ul=tb=null;B_.push({t:'hr'});continue;}
+    if(IMGLINE.test(l)){endPara();ul=tb=null;const last=B_[B_.length-1];const g=last&&last.t==='imgs'&&lines[i-1]&&lines[i-1].trim()?last:{t:'imgs',list:[]};if(g!==last)B_.push(g);
+      for(const x of l.matchAll(/!\[([^\]]*)\]\(([^)\s]+)\)/g))g.list.push({alt:x[1],src:x[2]});continue;}
+    if((m=raw.match(/^(\s*)(?:[-*]|(\d+)[.)])\s+(.*)$/))){endPara();tb=null;const ol=!!m[2]&&!m[1];if(!ul||(!m[1]&&ul.ol!==ol)){ul={t:'ul',ol,items:[]};B_.push(ul);}ul.items.push({x:m[3].trim(),sub:m[1].length>=2});continue;}
     if(/^\|.*\|$/.test(l)){endPara();ul=null;const cells=l.slice(1,-1).split('|').map(x=>x.trim());if(cells.every(x=>/^:?-{2,}:?$/.test(x)))continue;if(!tb){tb={t:'table',rows:[]};B_.push(tb);}tb.rows.push(cells);continue;}
     ul=tb=null;
-    if((m=l.match(/^>\s?(.*)$/))){endPara();B_.push({t:'rule',text:m[1]});}
+    if((m=l.match(/^>\s?(.*)$/))){endPara();const last=B_[B_.length-1];if(last&&last.t==='rule'&&lines[i-1]&&/^>/.test(lines[i-1].trim()))last.text+=' '+m[1];else B_.push({t:'rule',text:m[1]});}
     else if((m=l.match(/^※\s?(.*)$/))){endPara();B_.push({t:'small',text:m[1]});}
-    else if((m=l.match(/^#{1,6}\s+(.*)$/))){endPara();B_.push({t:'h',text:m[1]});}
-    else para.push(l);}
+    else if((m=l.match(/^(#{1,6})\s+(.*)$/))){endPara();B_.push({t:'h',lv:m[1].length,text:m[2]});}
+    else{para.push(l);if(lineMode)endPara();}}
   endPara();return B_;}
-function normItem(it){ if(typeof it.md!=='string') return it; return Object.assign({}, it, it.type==='phase' ? parsePhase(it.md) : { blocks:parseSpec(it.md) }); }
+function renderBlocks(c, blocks, id){
+  for (const bl of blocks || []) {
+    if (bl.t === 'p') c.append(h('p', null, rich(bl.text)));
+    else if (bl.t === 'h') c.append(h('h4', { class:bl.lv <= 2 ? 'h2' : '' }, rich(bl.text)));
+    else if (bl.t === 'rule') c.append(h('p', { class:'rule' }, rich(bl.text)));
+    else if (bl.t === 'small') c.append(h('p', { class:'small' }, rich(bl.text)));
+    else if (bl.t === 'hr') c.append(h('hr'));
+    else if (bl.t === 'code') c.append(h('pre', { class:'md', text:bl.text }));
+    else if (bl.t === 'ul') c.append(h(bl.ol ? 'ol' : 'ul', { class:bl.ol ? '' : 'todo' }, ...bl.items.map(x => h('li', { class:x.sub ? 'sub' : '' }, rich(x.x)))));
+    else if (bl.t === 'table') { const tb = h('table'), ans = id ? bl.rows[0].findIndex(x => plain(x) === '답') : -1; bl.rows.forEach((r, k) => { const q = k && ans >= 0 ? qidOf(r[0]) : null; const tr = h('tr', null, ...r.map((cell, j) => h(k === 0 ? 'th' : 'td', null, rich(cell), q && j === ans ? cellAnswers(id, q) : null))); (k === 0 ? (tb.tHead || tb.createTHead()) : (tb.tBodies[0] || tb.createTBody())).append(tr); }); c.append(h('div', { class:'tbl' }, tb)); }
+    else if (bl.t === 'imgs') c.append(h('div', { class:'pgal' + (bl.list.length === 1 ? ' one' : '') }, ...bl.list.map(x => { const src = imgSrc(x.src); return src ? h('figure', null, h('a', { href:src, target:'_blank', rel:'noopener' }, h('img', { src, alt:x.alt, loading:'lazy' })), x.alt ? h('figcaption', { text:x.alt }) : null) : null; })));
+    else if (bl.t === 'fold') { const d = h('details', { class:'fold' }, h('summary', null, rich(bl.sum))); renderBlocks(d, bl.blocks, id); c.append(d); }
+  }
+}
+// a phase written as a document (headings, tables, pictures…) is shown as one, not squeezed into goal / to-do
+function normItem(it){ if(typeof it.md!=='string') return it; const rich = it.type!=='phase' || RICH.test(it.md); return Object.assign({}, it, it.type==='phase' && !rich ? parsePhase(it.md) : { blocks:parseSpec(it.md), rich }); }
 const TAGC = { accent:'var(--accent)', amber:'var(--amber)', mint:'var(--mint)', dim:'var(--dim)' };
 const tagColor = (c) => TAGC[c] || (/^#[0-9a-f]{3,8}$/i.test(c || '') ? c : 'var(--dim)');
 function label(id){ if(id==='all') return '전체'; const it = S.items.find(x => x.id === id); if(!it) return id; return (it.type==='phase' ? (it.num != null ? it.num + ' · ' : '') : '설계 · ') + it.title; }
+const mdOf = (d) => Math.floor(d / 100) + '/' + (d % 100);
+function tagChip(tag){ const t = tag && ((S.info && S.info.tags) || []).find(y => y.id === tag); if (!t) return tag ? ' #' + tag : null; const s = h('span', { class:'p-tag', text:t.label }); s.style.color = tagColor(t.color); return s; }
+// one to-do of a phase; its "ㄴ" progress lines fold under it (newest date shown on the closed row)
+function planRow(x){
+  const head = [x.next ? h('span', { class:'chip review', text:'다음' }) : null, ' ', rich(x.text), tagChip(x.tag)];
+  if (!x.log.length) return h('li', null, ...head);
+  const last = Math.max(...x.log.map(e => e.date)), dec = x.log.filter(e => e.decide).length;
+  return h('li', null, h('details', null, h('summary', null, ...head, h('small', { class:'dim', text:' · 기록 ' + x.log.length + (dec ? ' (결정 ' + dec + ')' : '') + (last ? ' · 최근 ' + mdOf(last) : '') })),
+    h('ol', { class:'log' }, ...x.log.map(e => h('li', { class:e.decide ? 'dec' : '' }, rich(e.text))))));
+}
 function todoList(items){ const ul = h('ul', { class:'todo' }); for (const x of items) { const tags = (S.info && S.info.tags) || [], t = x.tag && tags.find(y => y.id === x.tag); const li = h('li', null, rich(x.text + (x.tag && !t ? ' #' + x.tag : ''))); if (t) { const s = h('span', { class:'p-tag', text:t.label }); s.style.color = tagColor(t.color); li.append(s); } ul.append(li); } return ul; }
 
 // work state per plan item: a live claim whose task is this item, else the latest logged state
@@ -542,36 +739,68 @@ function phaseCard(it){
   sec.append(h('div', { class:'coin', text:it.num != null ? String(it.num) : '·' }));
   const c = h('div', { class:'card', id:it.id });
   c.append(h('div', { class:'ph-top' }, h('h2', { text:it.title }), it.badge ? h('span', { class:'chip', text:it.badge }) : null));
-  c.append(h('p', { class:'goal' }, rich(it.goal || '')));
+  if (it.rich) { const w = wstate(it.id); if (w) c.append(w); const b = h('div', { class:'body' }); renderBlocks(b, it.blocks, it.id); c.append(b, threadFor(it.id)); sec.append(c); return sec; }
+  if (it.goal) c.append(h('p', { class:'goal' }, rich(it.goal)));
+  for (const n of it.notes || []) c.append(h('p', { class:'rule' }, rich(n)));
+  // "ㄴ" lines before any to-do: the phase's own progress log
+  if (it.log && it.log.length) c.append(h('details', { class:'fold' }, h('summary', null, '단계 기록 ' + it.log.length), h('ol', { class:'log' }, ...it.log.map(e => h('li', { class:e.decide ? 'dec' : '' }, rich(e.text))))));
   const w = wstate(it.id); if (w) c.append(w);
-  const todo = it.todo || []; if (todo.length) { const half = Math.ceil(todo.length / 2); c.append(h('h3', { text:'할 일' }), h('div', { class:'cols' }, todoList(todo.slice(0, half)), todo.length > 1 ? todoList(todo.slice(half)) : null)); }
-  if (it.done) c.append(h('div', { class:'doneline' }, h('b', { text:'끝 기준' }), ' · ', rich(it.done)));
-  if (it.decide && it.decide.length) c.append(h('p', { class:'decide' }, h('b', { text:'정할 것' }), ' · ' + it.decide.join(' · ')));
+  const crit = it.crit || [], decide = it.decide || [];
+  if (crit.length) c.append(h('div', { class:'doneline' }, h('b', { text:it.state === 'done' ? '끝 기준 ✓' : '끝 기준' }), crit.length === 1 ? h('span', null, ' · ', rich(crit[0])) : h('ul', null, ...crit.map(x => h('li', null, rich(x))))));
+  if (decide.length) c.append(h('div', { class:'decide' }, h('b', { text:'정할 것 ' + decide.length }), h('ul', null, ...decide.map(x => h('li', null, rich(x))))));
+  const todo = it.todo || []; if (todo.length) c.append(h('h3', { text:'할 일 ' + todo.length }), h('ul', { class:'plan' }, ...todo.map(planRow)));
+  const fold = (title, list) => list.length ? c.append(h('details', { class:'fold' }, h('summary', null, title + ' ' + list.length + (list[0].date ? ' · 최근 ' + mdOf(list[0].date) : '')), h('ul', { class:'dlist' }, ...list.map(x => h('li', null, x.date ? h('span', { class:'dchip', text:mdOf(x.date) }) : null, rich(x.text)))))) : null;
+  fold('완료한 것', it.done || []); fold('정한 것', it.decided || []);
   c.append(threadFor(it.id));
   sec.append(c); return sec;
 }
 function specCard(it){
   const c = h('div', { class:'card spec', id:it.id }, h('h2', { text:it.title }));
   const w = wstate(it.id); if (w) c.append(w);
-  for (const bl of it.blocks || []) {
-    if (bl.t === 'p') c.append(h('p', null, rich(bl.text)));
-    else if (bl.t === 'h') c.append(h('h4', null, rich(bl.text)));
-    else if (bl.t === 'rule') c.append(h('p', { class:'rule' }, rich(bl.text)));
-    else if (bl.t === 'small') c.append(h('p', { class:'small' }, rich(bl.text)));
-    else if (bl.t === 'ul') c.append(h('ul', { class:'todo' }, ...bl.items.map(x => h('li', null, rich(x)))));
-    else if (bl.t === 'table') { const tb = h('table'); bl.rows.forEach((r, k) => { const tr = h('tr', null, ...r.map(cell => h(k === 0 ? 'th' : 'td', null, rich(cell)))); (k === 0 ? (tb.tHead || tb.createTHead()) : (tb.tBodies[0] || tb.createTBody())).append(tr); }); c.append(h('div', { class:'tbl' }, tb)); }
-  }
+  const b = h('div', { class:'body' }); renderBlocks(b, it.blocks, it.id); c.append(b);
   c.append(threadFor(it.id));
   return c;
 }
+// items with a "tab" get their own tab on the page (open questions, an asset list…) instead of sitting in the roadmap
+const byOrder = (a, b) => (a.order||0) - (b.order||0);
+function tabNames(){ const out = []; for (const x of S.items.slice().sort(byOrder)) if (x.tab && !out.includes(x.tab)) out.push(x.tab); return out; }
+function renderXTabs(){
+  const names = tabNames();
+  $('xtabs').replaceChildren(...names.map(n => h('button', { 'data-v':'x:' + n, class:S.tab === 'x:' + n ? 'on' : '', text:n })));
+  if (S.want && names.includes(S.want.slice(2))) { const w = S.want; S.want = null; show(w); }
+  else if (S.tab.startsWith('x:')) { if (names.includes(S.tab.slice(2))) renderXList(); else show('road'); }
+}
+function renderXList(){ const n = S.tab.slice(2); $('xList').replaceChildren(...S.items.filter(x => x.tab === n).sort(byOrder).map(specCard)); }
 function renderItems(){
   keepFocus(() => {
-    const ph = S.items.filter(x => x.type === 'phase').sort((a,b) => (a.order||0) - (b.order||0)), sp = S.items.filter(x => x.type === 'spec').sort((a,b) => (a.order||0) - (b.order||0));
+    const ph = S.items.filter(x => x.type === 'phase' && !x.tab).sort(byOrder), sp = S.items.filter(x => x.type === 'spec' && !x.tab).sort(byOrder);
+    renderXTabs();
     $('rail').replaceChildren(...ph.map(phaseCard)); $('specList').replaceChildren(...sp.map(specCard));
     $('emptyRoad').hidden = !!ph.length; $('emptySpec').hidden = !!sp.length; $('tab-spec').hidden = !sp.length && !!S.items.length;
     const all = document.querySelector('[data-thread="all"]'); const old = all.querySelector('.thread'); if (old) old.remove(); all.append(threadBody('all'));
   });
   renderMap(); jumpHash();
+}
+
+// a table with a "답" column: each question row (first cell "Q16" …) takes answers right in that cell.
+// An answer is an ordinary comment on the item, "Q16: …", so AIs read it from digest like any other.
+const plain = (x) => String(x || '').replace(/[*`_]/g, '').trim();
+const qidOf = (x) => { const m = plain(x).match(/^([A-Za-z]{1,3}\d+)\b/); return m ? m[1].toUpperCase() : null; };
+const qRe = (q) => new RegExp('^\\s*' + q + '\\s*[:：]', 'i');
+function cellAnswers(id, q){
+  const key = id + '-' + q, L = S.comments.filter(c => c.phase === id && qRe(q).test(c.text || '')).sort((a,b) => a.at - b.at);
+  const box = h('div', { class:'qa' }, ...L.map(c => { const r = replyOf(c);
+    return h('div', { class:'qa-row' }, h('b', { text:(c.byName || nameOf(c.by)) + ' · ' }), (c.text || '').replace(qRe(q), '').trim(), h('small', { class:'dim', text:' ' + ago(c.at) }),
+      r ? h('div', { class:'answer', style:'margin-top:3px' }, h('span', { class:'chip ai', text:'AI' }), ' ', r) : null); }));
+  if (!canWrite()) return L.length ? box : null;
+  if (!S.qa[key]) { box.append(h('button', { class:'tbtn qa-btn', type:'button', text:L.length ? '+ 답 더 달기' : '답 달기', onclick:() => { S.qa[key] = true; renderItems(); const t = $('ta-' + key); if (t) t.focus(); } })); return box; }
+  const ta = h('textarea', { rows:2, id:'ta-' + key, placeholder:q + '에 대한 답 (모르면 "보류")', value:S.draft[key] || '', 'aria-label':q + ' 답' });
+  const go = h('button', { class:'btn sm', type:'button', text:'등록', disabled:!ta.value.trim() });
+  const no = h('button', { class:'tbtn', type:'button', text:'취소', onclick:() => { S.qa[key] = false; renderItems(); } });
+  ta.addEventListener('input', () => { S.draft[key] = ta.value; go.disabled = !ta.value.trim(); });
+  go.addEventListener('click', async () => { const text = ta.value.trim(); if (!text) return; go.disabled = true;
+    try { await S.db.collection('comments').add({ phase:id, kind:'comment', text:(q + ': ' + text).slice(0, 2000), at:Date.now(), status:'open' }); S.draft[key] = ''; S.qa[key] = false; renderItems(); } catch (e) { go.disabled = false; toast('등록하지 못했어.'); } });
+  box.append(ta, h('div', { class:'row' }, no, go)); return box;
 }
 
 // ---------- comments ----------
@@ -590,7 +819,8 @@ function threadBody(id){
 function commentRow(c){
   const head = h('div', { class:'cm-head' }, h('b', { text:c.byName || nameOf(c.by) }), h('span', { class:'chip ' + (isDone(c) ? 'done' : c.kind === 'add' ? 'review' : ''), text:isDone(c) ? '반영됨' : c.kind === 'add' ? '추가 제안' : '코멘트' }), h('span', { text:ago(c.at) }));
   if (S.me && c.by === S.me.id && canWrite()) head.append(armed('삭제', '한 번 더 누르면 삭제', async () => { try { await S.db.doc('comments/' + c.id).delete(); } catch (e) { toast('삭제하지 못했어.'); } }));
-  const body = h('div', null, head, h('div', { class:'cm-text', text:c.text })); const r = replyOf(c); if (r) body.append(h('div', { class:'answer', style:'margin-top:4px' }, h('b', { text:'AI · ' }), r));
+  const body = h('div', null, head, h('div', { class:'cm-text', text:c.text })); const r = replyOf(c); if (r) { const rb = S.replies[c.id] && person(S.replies[c.id].by);   // replies only come from members' AIs (MCP reply)
+    body.append(h('div', { class:'answer', style:'margin-top:4px' }, h('span', { class:'chip ai', text:'AI' }), ' ', h('b', { text:(rb ? rb.name + '의 AI' : 'AI') + ' · ' }), r)); }
   return h('div', { class:'cm' }, avatar(c.by), body);
 }
 function compose(id){
@@ -617,19 +847,24 @@ function renderModules(){
   const cl = live(), byName = Object.fromEntries(S.contracts.map(c => [c.id, c]));
   const cards = S.modules.map(m => {
     const c = cl[m.id];
-    const chips = (lab, list) => list && list.length ? h('div', { class:'links-row' }, lab, ...list.map(n => h('a', { href:'#c-' + n, class:'chip', text:n, onclick:(e) => { e.preventDefault(); const t = $('c-' + n); if (t) t.scrollIntoView({ behavior:'smooth', block:'start' }); } }))) : null;
+    const chips = (lab, list) => list && list.length ? h('div', { class:'links-row' }, lab, ...list.map(n => h('a', { href:'#c-' + n, class:'chip', text:n, onclick:(e) => { e.preventDefault(); const t = $('c-' + n); if (t) { t.open = true; t.scrollIntoView({ behavior:'smooth', block:'start' }); } } }))) : null;
+    const ho = S.handoff[m.id];
     return h('div', { class:'card mod' + (c ? ' busy' : '') },
       h('div', { class:'mod-top' }, h('span', { class:'dot' + (c ? ' on' : '') }), h('b', { text:m.id }), c ? h('span', { class:'chip work', text:c.name + (c.agent ? ' · ' + c.agent : '') }) : null),
-      m.note ? h('div', { class:'meta', text:m.note }) : null,
+      m.note ? h('div', { class:'mod-desc' }, rich(m.note)) : null,
       h('div', { class:'files' }, ...(m.files || []).map(f => h('code', { text:f }))),
-      chips('제공', m.provides), chips('사용', m.requires));
+      chips('제공', m.provides), chips('사용', m.requires),
+      ho ? handoffBox(ho, '마지막 인계') : null);
   });
   if (S.free.length) cards.push(h('div', { class:'card mod free' }, h('div', { class:'mod-top' }, h('b', { text:'누구나 고칠 수 있는 파일' })), h('div', { class:'files' }, ...S.free.map(f => h('code', { text:f })))));
   $('modGrid').replaceChildren(...(cards.length ? cards : [h('div', { class:'empty', text:'아직 모듈이 없어.' })]));
   const users = (n) => S.modules.filter(m => (m.requires || []).includes(n)).map(m => m.id);
-  $('conList').replaceChildren(...(S.contracts.length ? S.contracts.slice().sort((a,b) => a.id.localeCompare(b.id)).map(c => h('div', { class:'card', id:'c-' + c.id },
-    h('div', { class:'block-head', style:'margin:0' }, h('h2', { style:'margin:0;font-size:16px' }, c.id, h('span', { class:'dim', style:'font-weight:400', text:' v' + (c.v || 1) })), h('span', { class:'dim', style:'font-size:13px', text:'제공 ' + (c.owner || '?') + (users(c.id).length ? ' · 사용 ' + users(c.id).join(', ') : '') })),
-    h('pre', { class:'md', text:c.md || '' }), c.at ? h('small', { class:'dim', text:'바뀜 ' + ago(c.at) + (c.by ? ' · ' + nameOf(c.by) : '') }) : null)) : [h('div', { class:'empty', text:'아직 연결부가 없어.' })]));
+  $('conList').replaceChildren(...(S.contracts.length ? S.contracts.slice().sort((a,b) => a.id.localeCompare(b.id)).map(c => { const b = h('div', { class:'body con' }); renderBlocks(b, parseSpec(c.md || '', true));
+    return h('details', { class:'card con-card', id:'c-' + c.id },
+      h('summary', null, h('b', { text:c.id }), h('span', { class:'dim', text:' v' + (c.v || 1) + ' · 제공 ' + (c.owner || '?') + (users(c.id).length ? ' · 사용 ' + users(c.id).join(', ') : '') + (c.at ? ' · 바뀜 ' + ago(c.at) : '') }),
+        h('div', { class:'con-first' }, clip(String(c.md || '').split('\n')[0], 140))),
+      b, c.at ? h('small', { class:'dim', text:'바뀜 ' + ago(c.at) + (c.by ? ' · ' + nameOf(c.by) : '') }) : null); }) : [h('div', { class:'empty', text:'아직 연결부가 없어.' })]));
+  renderFileMap();
   const pend = S.crq.filter(r => !r.done).sort((a,b) => (a.at||0) - (b.at||0));
   $('crqBlock').hidden = !pend.length; $('cntCrq').textContent = pend.length || '';
   $('crqList').replaceChildren(...pend.map(r => {
@@ -639,6 +874,27 @@ function renderModules(){
     return h('div', { class:'ask' }, h('div', { class:'ask-head' }, h('b', { text:r.name }), h('span', { text:nameOf(r.by) + ' · ' + ago(r.at) })), r.reason ? h('div', { text:r.reason }) : null,
       h('details', null, h('summary', { text:'바꾸자는 규격 보기' }), h('pre', { class:'md', text:r.md || '' })), act);
   }));
+}
+// which module owns which files, sorted by path, so people see the repo layout at a glance
+function renderFileMap(){
+  const rows = [];
+  for (const m of S.modules) for (const f of m.files || []) rows.push({ f, mod:m.id, note:m.note || '' });
+  rows.sort((a, b) => a.f.localeCompare(b.f));
+  if (S.free.length) rows.push({ f:S.free.join('  '), mod:'', note:'누구나 고칠 수 있는 파일 (문서·빌드 결과 등)' });
+  const cl = live();
+  $('fileMap').replaceChildren(...(rows.length ? [h('div', { class:'tbl' }, h('table', null, h('thead', null, h('tr', null, h('th', { text:'파일·폴더' }), h('th', { text:'모듈' }), h('th', { text:'하는 일' }))),
+    h('tbody', null, ...rows.map(r => h('tr', null, h('td', null, h('code', { text:r.f })), h('td', null, r.mod ? h('span', null, h('span', { class:'dot' + (cl[r.mod] ? ' on' : '') }), ' ', r.mod) : h('span', { class:'dim', text:'(공용)' })), h('td', { class:'dim' }, clip(r.note, 90)))))))]
+    : [h('div', { class:'empty', text:'아직 모듈이 없어.' })]));
+}
+// 인계 메모: where an AI left the work (from release/status handoff, or its last progress line when it stopped answering)
+function handoffBox(x, title){
+  const who = (x.name || '?') + (x.agent ? ' · ' + x.agent : '') + ' · ' + ago(x.at) + (x.state === 'expired' ? ' · 중간에 멈춤' : '');
+  return h('details', { class:'handoff' + (x.state === 'expired' ? ' stop' : '') }, h('summary', null, h('b', { text:title }), ' ', h('span', { class:'dim', text:who })), h('div', { class:'ho-text', text:x.text || '' }));
+}
+// 완료 기준 with the results the AI reported (✓ met · ✗ not met · ○ not reported yet)
+function checkList(crit, res){
+  return h('ul', { class:'checks' }, ...crit.map((x, i) => { const r = res && res[i];
+    return h('li', { class:r ? (r.ok ? 'ok' : 'bad') : '' }, h('span', { class:'mk', text:r ? (r.ok ? '✓' : '✗') : '○' }), ' ', rich(x), r && r.how ? h('small', { class:'dim', text:' — ' + r.how }) : null); }));
 }
 async function decide(id, ok){ try { const r = await api('/api/crq', 'POST', { id, ok }); toast(r.text || '처리했어'); } catch (e) { toast(e.message); } }
 
@@ -657,7 +913,7 @@ function clip(t, n){ t = String(t || '').replace(/\*\*/g, '').replace(/\s+/g, ' 
 const STOP = new Set(['시스템','구조','정의','핵심','기둥','한','줄','네','과','와','및','the','and']);
 const specKeys = (sp) => String(sp.title || '').split(/[^0-9A-Za-z가-힣]+/).filter(w => w.length >= 2 && !STOP.has(w));
 const mentions = (text, sp) => { const t = String(text || ''); return t.includes('[[' + sp.id + ']]') || specKeys(sp).some(k => t.includes(k)); };
-function goTo(id){ const it = S.items.find(x => x.id === id); if (!it) return; show(it.type === 'spec' ? 'spec' : 'road'); const t = $(id); if (t) setTimeout(() => t.scrollIntoView({ behavior:'smooth', block:'start' }), 30); }
+function goTo(id){ const it = S.items.find(x => x.id === id); if (!it) return; S.want = null; show(it.tab ? 'x:' + it.tab : it.type === 'spec' ? 'spec' : 'road'); const t = $(id); if (t) setTimeout(() => t.scrollIntoView({ behavior:'smooth', block:'start' }), 30); }
 let hashDone = false; function jumpHash(){ if (hashDone) return; const id = decodeURIComponent((location.hash || '').slice(1)); if (!id || !S.items.some(x => x.id === id)) return; hashDone = true; goTo(id); }
 function renderMap(){
   const svg = $('planMap'); svg.replaceChildren();
@@ -682,7 +938,7 @@ function renderMap(){
     const tx = sv('text', { x:18, y:15, 'font-size':12 }, g); tx.textContent = clip(r.t.text, 22); sv('title', {}, g).textContent = r.t.text; todoPos.push({ r, y:yy }); }
   for (const s of sp) { let any = false;
     for (const tp of todoPos) if (mentions(tp.r.t.text, s)) { any = true; sv('path', { d:curve(X2 + W2 - 6, tp.y, X3, pos[s.id].y + 11), stroke:cssVar('--accent'), 'stroke-opacity':.55, 'stroke-dasharray':'4 4', fill:'none' }, gL); }
-    for (const p of ph) if (mentions(p.goal, s) || mentions(p.done, s)) { any = true; sv('path', { d:curve(X1 + W1, pos[p.id].y + 11, X3, pos[s.id].y + 11), stroke:cssVar('--accent'), 'stroke-opacity':.35, 'stroke-dasharray':'2 5', fill:'none' }, gL); }
+    for (const p of ph) if (mentions(p.goal, s) || mentions((p.crit || []).join(' '), s)) { any = true; sv('path', { d:curve(X1 + W1, pos[p.id].y + 11, X3, pos[s.id].y + 11), stroke:cssVar('--accent'), 'stroke-opacity':.35, 'stroke-dasharray':'2 5', fill:'none' }, gL); }
     for (const o of sp) if (o.id !== s.id && String(o.md || '').includes('[[' + s.id + ']]')) { any = true; sv('path', { d:curve(X3 + W3, pos[o.id].y + 11, X3 + W3, pos[s.id].y + 11, X3 + W3 + 40), stroke:cssVar('--accent'), 'stroke-dasharray':'4 4', fill:'none' }, gL); }
     s._linked = any; }
   for (const p of ph) { const g = nodeG(X1, pos[p.id].y, p.id); const st = itemState(p.id); const state = st && st.state === 'working' ? 'working' : p.state;
@@ -697,14 +953,17 @@ function renderMap(){
 }
 
 // ---------- connect ----------
-function renderAll(){ renderNow(); renderAsks(); renderActivity(); renderSide(); renderTalk(); }
-setInterval(() => { renderNow(); renderActivity(); }, 30000);
+function renderAll(){ renderNow(); renderCode(); renderAsks(); renderActivity(); renderSide(); renderTalk(); }
+// GitHub main is fetched by the hub (at most once a minute); the git/main document then updates every open page
+const pullMain = () => { if (S.db && !document.hidden) api('/api/git').catch(() => {}); };
+setInterval(() => { renderNow(); renderCode(); pullMain(); }, 30000);
 (async () => {
   if (!window.claude || !claude.use) { $('lead').textContent = '이 페이지는 기획판 허브에서 열어줘.'; return; }
   const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]); S.db = db;
   try { S.me = await user.me(); } catch (e) {}
   try { const t = await api('/api/team'); for (const p of t.team) S.team[p.id] = p; } catch (e) {}
   renderMe(); renderAskTo();
+  PB_CUSTOM.init(db, S.me, show);
   if (!canWrite()) { ta.readOnly = true; }
   // _doc = the document id (a claim document is keyed by module and also carries its claim id in id)
   const col = (name, fn) => db.collection(name).onSnapshot(q => { fn(q.docs.map(d => Object.assign({ id:d.id }, d.data(), { _doc:d.id }))); }, () => {});
@@ -716,8 +975,12 @@ setInterval(() => { renderNow(); renderActivity(); }, 30000);
   col('claims', L => { S.claims = Object.fromEntries(L.map(c => [c._doc, c])); renderNow(); renderModules(); renderItems(); });
   col('modules', L => { S.free = ((L.find(m => m.id === '_free') || {}).files) || []; S.modules = L.filter(m => !m.id.startsWith('_')).sort((a,b) => (a.order||0) - (b.order||0) || a.id.localeCompare(b.id)); renderNow(); renderModules(); });
   col('contracts', L => { S.contracts = L; renderModules(); });
+  col('handoff', L => { S.handoff = Object.fromEntries(L.map(x => [x.id, x])); renderModules(); });
   col('crq', L => { S.crq = L; renderModules(); renderSide(); });
   col('tasks', L => { S.tasks = L; renderAsks(); renderNow(); });
+  col('local', L => { S.local = L.map(l => Object.assign({ dirty:[] }, l)); renderCode(); });
+  db.doc('git/main').onSnapshot(s => { S.main = s.exists ? s.data() : null; renderCode(); }, () => {});
+  pullMain();
   db.doc('notes/memo').onSnapshot(s => { const d = s.exists ? s.data() : null; if (d && S.memo && d.at === S.memo.at) return; S.memo = d;
     if (document.activeElement === ta && S.memoDirty) $('memoBanner').hidden = false; else ta.value = (d && d.text) || ''; memoState(); }, () => {});
   renderAll();

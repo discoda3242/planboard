@@ -10,6 +10,10 @@
   "compatibility_date": "2026-09-01",
   "build": { "command": "node build.mjs" },
   "vars": { "OWNER_GITHUB": "your-github-username", "GH_BOARDS": { "your-org/your-repo": "board-name" }, "GH_CHECKS": "build" },
+  // optional: pictures on the board (npx wrangler r2 bucket create planboard-hub-images)
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "planboard-hub-images" }],
+  // per board and visitor: ~40 requests per 10 s (approximate — Cloudflare counts per machine); more gets 429 before the board (Durable Object) is touched
+  "ratelimits": [{ "name": "RL_BOARD", "namespace_id": "1001", "simple": { "limit": 40, "period": 10 } }],
   "durable_objects": { "bindings": [{ "name": "BOARD", "class_name": "Board" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Board"] }]
 }

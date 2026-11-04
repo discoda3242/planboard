@@ -1,8 +1,8 @@
 // node hub/test.mjs — runs the hub (core + Worker routes) in Node against an in-memory store.
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
-execSync('node ' + new URL('./build.mjs', import.meta.url).pathname);
-const { Hub, mcpHandle, globRe, LEASE_MIN } = await import('./core.js');
+execSync('node ' + JSON.stringify(decodeURIComponent(new URL('./build.mjs', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')));
+const { Hub, mcpHandle, globRe, LEASE_MIN, can } = await import('./core.js');
 const { default: worker, Board } = await import('./worker.js');
 
 function memStore() {
@@ -47,7 +47,7 @@ r = await call(b, 'contract', { name: 'furniture-build', propose: 'FURN v2: + pa
 assert.match(r, /바꿨어: furniture-build v2/);
 r = await call(b, 'contract', { name: 'prize-spec', propose: 'PRIZES + weight', reason: '무게 점수' });
 assert.match(r, /요청 올렸어/); const crq = r.match(/\((\w+)\)/)[1];
-r = await call(a, 'digest'); assert.match(r, /연결부 변경 요청: /); assert.match(r, /열린 코멘트 2/);
+r = await call(a, 'digest'); assert.match(r, /연결부 변경 요청: /); assert.match(r, /열린 코멘트 1/); assert.match(r, /연결부 바뀜\(24시간\): furniture-build v2/);
 await assert.rejects(call(b, 'contract', { approve: crq }), /승인할 수 있어/);
 r = await call(a, 'contract', { approve: crq }); assert.match(r, /승인: prize-spec/);
 r = await call(b, 'contract', { name: 'prize-spec' }); assert.match(r, /prize-spec v2/); assert.match(r, /weight/);
@@ -90,6 +90,14 @@ await assert.rejects(call(b, 'item', { id: 'p1', old_str: '부품', new_str: 'x'
 assert.equal(await call(a, 'item', { id: 'p1', old_str: '부품', new_str: '부품 시스템' }), 'ok');
 await hub.put('notes', 'memo', { text: '오늘 회의', at: T });
 assert.match(await call(b, 'digest'), /메모: 바뀜/); await call(b, 'item', { id: 'notes/memo' }); assert.match(await call(b, 'digest'), /메모: 변경 없음/);
+assert.equal(await call(b, 'item', { id: 'notes/memo', new_str: '- 다음: 발표' }), 'ok'); // no old_str: appends
+assert.equal(await call(b, 'item', { id: 'notes/memo', old_str: '회의', new_str: '회의 끝' }), 'ok');
+assert.equal((await hub.get('notes', 'memo')).text, '오늘 회의 끝\n- 다음: 발표'); assert.match(await call(b, 'digest'), /메모: 변경 없음/);
+await assert.rejects(call(b, 'item', { id: 'notes/memo', old_str: '없는 말', new_str: 'x' }), /정확히 한 번/);
+await assert.rejects(call(b, 'item', { id: 'links', links: [{ label: '문서', url: 'https://example.com' }] }), /관리자만/);
+await assert.rejects(call(a, 'item', { id: 'links', links: [{ label: '실행', url: 'file:///C:/x.bat' }] }), /https/);
+assert.equal(await call(a, 'item', { id: 'links', links: [{ label: '문서', url: 'https://example.com' }] }), 'ok');
+assert.equal(await call(b, 'item', { id: 'links' }), '문서 https://example.com');
 
 // MCP JSON-RPC
 let res = await mcpHandle(hub, b, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } });
@@ -122,6 +130,9 @@ assert.equal(resp.status, 403, 'needs X-PB header');
 const post = (p, body) => f(p, { method: 'POST', headers: { ...auth, 'X-PB': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 resp = await post('/api/import', { docs: [{ col: 'items', id: 'p1', data: { type: 'phase', order: 1, title: '창작 기반', md: '- a' } }, { col: 'modules', id: 'room', data: { files: ['src/room.js'], provides: [], requires: [] } }] });
 assert.deepEqual(await resp.json(), { ok: true, n: 2 });
+resp = await post('/api/import', { docs: [{ col: 'tasks', id: 't-old', data: { title: '옮겨 온 할 일', status: 'done', by: 'someone', at: 1 } }] });
+assert.deepEqual(await resp.json(), { ok: true, n: 1 }, 'a task that is not there yet imports as it was');
+resp = await f('/api/doc?path=tasks/t-old', { headers: auth }); assert.equal((await resp.json()).data.status, 'done');
 await new Promise((r) => setTimeout(r, 120)); assert.ok(sent.some((x) => x.includes('items') || x.includes('"all"')), 'live update pushed');
 resp = await f('/api/col?name=items', { headers: auth }); assert.equal((await resp.json()).docs[0].id, 'p1');
 resp = await post('/api/members', { name: '유삭', role: 'interact' }); const link = (await resp.json()).link; const tok = link.split('t=')[1];
@@ -246,6 +257,27 @@ resp = await f('/api/col?name=claimlog', { headers: { Cookie: 'pb_t=' + tok } })
   // an expired claim puts its task back in the queue
   const a3 = await h.apiAdd(o, 'tasks', { title: '물리 튜닝', to: y.id, ai: true }); await h.call(y, 'claim', { module: 'physics', note: 't', agent: 'Claude', todo: a3 });
   T += (LEASE_MIN + 1) * 6e4; await h.expire(); const A3 = await h.get('tasks', a3); assert.equal(A3.status, 'todo'); assert.equal(A3.claim, '');
+  // ...with an automatic handoff (its last progress line), which the next claim of that task gets
+  assert.match(A3.handoff.text, /인계 메모 없이 멈춤. 마지막 상태: t/); assert.equal(A3.handoff.state, 'expired');
+  r = await h.call(o, 'claim', { module: 'physics', note: '이어서', agent: 'Gemini', todo: a3 }); assert.match(r, /이전 작업 인계 \(physics · 유삭\/Claude.*중간에 멈춤\) — 여기서 이어서 해:\n인계 메모 없이 멈춤/);
+  // a handoff written with status (stopping mid-way) is kept per module and shown to the next claim
+  await h.call(o, 'status', { module: 'physics', note: '반쯤', handoff: '마찰 계수 바꿈. 남은 것: 테스트 t1 고치기' });
+  assert.equal((await h.get('handoff', 'physics')).text, '마찰 계수 바꿈. 남은 것: 테스트 t1 고치기'); assert.match((await h.get('tasks', a3)).handoff.text, /마찰 계수/);
+  await h.call(o, 'release', { module: 'physics', summary: '반쯤', handoff: '마찰 계수 바꿈. 남은 것: 테스트 t1 고치기' });
+  r = await h.call(y, 'claim', { module: 'physics', note: 'x', agent: 'Claude' }); assert.match(r, /이전 작업 인계 \(physics · 지은\/Gemini.*\n마찰 계수 바꿈/);
+  r = await h.call(y, 'claim', { module: 'physics', note: 'x2', agent: 'Claude' }); assert.match(r, /이전 작업 인계/, 'renewing your own claim still shows the earlier one');
+  await h.call(y, 'release', { module: 'physics', summary: 's', handoff: '다 함' });
+  r = await h.call(y, 'claim', { module: 'physics', note: 'x3', agent: 'Claude' }); assert.match(r, /다 함/); await h.call(y, 'release', { module: 'physics', summary: 's' });
+  // 완료 기준: release needs one result per criterion; an unmet one keeps the task in 검토
+  const a5 = await h.apiAdd(o, 'tasks', { title: '소파 색', to: y.id, ai: true, check: '- 소파가 3색\n2) 저장 후 다시 열어도 같은 색\n\n' });
+  assert.deepEqual((await h.get('tasks', a5)).check, ['소파가 3색', '저장 후 다시 열어도 같은 색']); assert.match(await h.call(y, 'digest'), /\[완료 기준 2\]/);
+  r = await h.call(y, 'claim', { module: 'room', note: '색', agent: 'Claude', todo: a5 }); assert.match(r, /완료 기준 .*\n1\. 소파가 3색\n2\. 저장 후/);
+  r = await h.call(y, 'release', { module: 'room', summary: '색 넣음', state: 'done' }); assert.equal(r.error, true); assert.match(r.text, /완료 기준이 2개/); assert.ok((await h.claims()).room, 'claim kept');
+  await h.call(y, 'release', { module: 'room', summary: '색 넣음', state: 'done', checks: [{ ok: true, how: '화면에서 3색 확인' }, { ok: false, how: '저장은 아직 안 됨' }], handoff: '저장 남음' });
+  const A5 = await h.get('tasks', a5); assert.equal(A5.status, 'review', 'an unmet criterion → 검토'); assert.deepEqual(A5.checks.map((x) => x.ok), [true, false]);
+  assert.ok((await h.list('log')).some((x) => x.data.checks && x.data.checks[1].what === '저장 후 다시 열어도 같은 색' && x.data.state === 'review'));
+  assert.equal((await h.get('tasks', (await h.call(y, 'todo', { title: '기준 있음', check: ['a', 'b'] })).match(/추가했어: (\w+)/)[1])).check.length, 2);
+  await assert.rejects(h.apiWrite(y, { op: 'update', path: 'handoff/room', data: { text: 'x' } }), /no write access/);
   // contract change requests can be dismissed from the page
   await h.call(y, 'contract', { name: 'prize', propose: 'new', reason: 'r' }); const q = (await h.list('crq'))[0];
   await assert.rejects(h.decideCrq(y, q.id, false), /관리자만/); assert.match(await h.decideCrq(o, q.id, false), /거절/); assert.equal((await h.get('crq', q.id)).dismissed, true);
@@ -276,10 +308,11 @@ resp = await f('/api/col?name=claimlog', { headers: { Cookie: 'pb_t=' + tok } })
     if ((m = path.match(/^\/pulls\/(\d+)\/files/))) return G.prs[m[1]].files.map((filename) => ({ filename }));
     if ((m = path.match(/^\/commits\/(\w+)\/check-runs/))) return { check_runs: G.runs[m[1]] || [] };
     if ((m = path.match(/^\/statuses\/(\w+)$/))) { G.statuses.push([m[1], body.state, body.description]); return {}; }
-    if ((m = path.match(/^\/pulls\/(\d+)\/merge$/)) && method === 'PUT') { const p = G.prs[m[1]]; if (p.conflict) { const e = new Error('409'); e.status = 405; throw e; } p.merged = true; p.state = 'closed'; G.merged.push(+m[1]); return { sha: 'mergesha1' }; }
+    if ((m = path.match(/^\/pulls\/(\d+)\/merge$/)) && method === 'PUT') { const p = G.prs[m[1]]; if (p.computing > 0) { p.computing--; p.mergeable = p.computing ? null : true; const e = new Error('405'); e.status = 405; throw e; }
+      if (p.conflict) { p.mergeable = false; const e = new Error('409'); e.status = 405; throw e; } p.merged = true; p.state = 'closed'; G.merged.push(+m[1]); return { sha: 'mergesha1' }; }
     throw new Error('unexpected ' + method + ' ' + path);
   };
-  const h = new Hub(memStore(), { now: () => T, gh });
+  const h = new Hub(memStore(), { now: () => T, gh, sleep: async () => {} });
   const y = await h.member((await h.addMember({ name: '유삭', role: 'interact', github: 'yusak' })).id);
   const z = await h.member((await h.addMember({ name: '지은', role: 'admin', github: 'jieun' })).id);
   await h.put('modules', 'room', { files: ['src/room.js'] }); await h.put('modules', 'physics', { files: ['src/physics.js'] });
@@ -315,6 +348,9 @@ resp = await f('/api/col?name=claimlog', { headers: { Cookie: 'pb_t=' + tok } })
   // 5) merge conflict → told to rebase
   pr(10, { head: { ref: 'claim/' + c3, sha: 'sha10' }, conflict: true }); G.runs.sha10 = [{ name: 'build', status: 'completed', conclusion: 'success' }];
   r = await h.call(y, 'release', { module: 'room', summary: 's', pr: 10 }); assert.match(r, /rebase/);
+  // GitHub still working out mergeability right after the checks (405, mergeable null) is not a conflict: retried, then merged
+  pr(11, { head: { ref: 'claim/' + c3, sha: 'sha10' }, computing: 2 }); G.prs[10].conflict = false;
+  r = await h.call(y, 'release', { module: 'room', summary: 's', pr: 11 }); assert.match(r, /머지했어: PR #11/);
   // without a GitHub App the old release (no pr) still works, and release(pr) explains why it can't
   const h0 = new Hub(memStore(), { now: () => T }); const q = await h0.member((await h0.addMember({ name: 'q', role: 'interact' })).id); await h0.put('modules', 'room', { files: ['src/room.js'] });
   await h0.call(q, 'claim', { module: 'room', note: 'n', agent: 'A' }); await assert.rejects(h0.call(q, 'release', { module: 'room', summary: 's', pr: 1 }), /GitHub에 연결되지 않았어/);
@@ -329,4 +365,58 @@ resp = await f('/api/col?name=claimlog', { headers: { Cookie: 'pb_t=' + tok } })
   assert.equal(rr.status, 200); assert.deepEqual(got, ['/b/claw/__ghhook', 'check_suite']);
   rr = await worker.fetch(new Request('https://hub.dev/b/claw/__ghhook', { method: 'POST', body }), env3); assert.equal(rr.status, 404, 'internal hook not reachable from outside');
 }
+// ---- local copies vs GitHub main ----
+{
+  const M = 'a'.repeat(40), B0 = 'b'.repeat(40), calls = [];
+  const fake = async (method, path) => { calls.push(path); if (path === '/commits/main') return { sha: M, commit: { message: 'merge #9\nbody', committer: { date: '2026-10-19T01:00:00Z' } } };
+    if (path === `/compare/${B0}...${M}`) return { ahead_by: 3 }; throw Object.assign(new Error('404'), { status: 404 }); };
+  const h = new Hub(memStore(), { now: () => T, gh: fake }); const u = await h.member((await h.addMember({ name: '민준', role: 'admin', owner: true })).id);
+  let v = await h.setLocal(u, { branch: 'main', head: 'c'.repeat(40), base: B0, ahead: 1, unpushed: 1, dirtyN: 2, dirty: [' M src/a.js', '?? x'], host: 'DESK-1 (home)' });
+  assert.equal(v.behind, 3); assert.equal(v.main, M); assert.equal((await h.get('git', 'main')).msg, 'merge #9');
+  assert.ok(await h.get('local', u.id + '-DESK-1home'), 'one document per member and computer');
+  assert.match(await h.t_digest(u), /GitHub main보다 3커밋 뒤.*안 올린 커밋 1/);
+  v = await h.setLocal(u, { branch: 'main', head: M, base: M, host: 'DESK-1 (home)' }); assert.equal(v.behind, 0);
+  assert.equal(calls.filter((c) => c === '/commits/main').length, 1, 'main is cached for a minute');
+  v = await h.setLocal(u, { head: 'nope', base: '../x', dirty: 'x', host: '' }); assert.equal(v.head, ''); assert.equal(v.base, ''); assert.deepEqual(v.dirty, []); assert.equal(v.behind, null);
+  assert.equal(can(u, 'local/x', 'write'), false);
+  await h.setLocal(u, { head: M, host: 'DESK-1 (home)', dir: 'C:/work/claw' }); await h.setLocal(u, { head: M, host: 'DESK-1 (home)', dir: 'C:/work/claw-wt' });
+  const rows = (await h.list('local')).filter((x) => x.data.by === u.id && x.data.host === 'DESK-1 (home)');
+  assert.deepEqual(rows.map((x) => x.data.dir).sort(), ['C:/work/claw', 'C:/work/claw-wt'], 'two folders on one computer are two rows; the row without a folder is gone');
+  // a worktree of the same repo that was removed drops off with the next report; another repo's folder stays
+  const cm = 'C:/work/claw/.git';
+  await h.setLocal(u, { head: M, host: 'DESK-2', dir: 'C:/work/claw', common: cm, worktrees: ['C:/work/claw', 'C:/tmp/wt1'] });
+  await h.setLocal(u, { head: M, host: 'DESK-2', dir: 'C:/tmp/wt1', common: cm, worktrees: ['C:/work/claw', 'C:/tmp/wt1'] });
+  await h.setLocal(u, { head: M, host: 'DESK-2', dir: 'D:/other/claw', common: 'D:/other/claw/.git', worktrees: ['D:/other/claw'] });
+  await h.setLocal(u, { head: M, host: 'DESK-2', dir: 'C:/work/claw', common: cm, worktrees: ['C:/work/claw'] });   // wt1 removed
+  const r2 = (await h.list('local')).filter((x) => x.data.by === u.id && x.data.host === 'DESK-2').map((x) => x.data.dir).sort();
+  assert.deepEqual(r2, ['C:/work/claw', 'D:/other/claw']);
+}
+// ---- edit guard: an AI may write a module file only while it holds that module ----
+{
+  const g = await hub.member((await hub.addMember({ name: '가드', role: 'interact' })).id), root = 'C:\\work\\claw';
+  let r = await hub.guard(g, ['C:\\work\\claw\\src\\room.js'], root); assert.equal(r.ok, false); assert.match(r.reason, /src\/room\.js: room 모듈 파일이야. 고치기 전에 기획판 claim\(module: "room"/);
+  assert.equal((await hub.guard(g, ['C:/work/claw/README.md', 'D:/elsewhere/x.js', 'C:/work/claw-other/src/room.js'], root)).ok, true, 'free files and files outside this repo pass');
+  assert.match((await hub.guard(g, ['src/new.js'], root)).reason, /어느 모듈에도 없는/);
+  await hub.t_claim(g, { module: 'room', note: '가드 테스트', agent: 'Claude' });
+  assert.equal((await hub.guard(g, ['c:/WORK/claw/src/room.js'], root)).ok, true, 'held: allowed (drive letter and case do not matter)');
+  const o = await hub.member((await hub.addMember({ name: '다른', role: 'interact' })).id);
+  assert.match((await hub.guard(o, ['src/room.js'], root)).reason, /가드\(Claude\)이\(가\) 잡고 있어/);
+  await hub.t_release(g, { module: 'room', summary: '끝' });
+  // a copy's row: its owner or an admin can drop it
+  await hub.setLocal(g, { host: 'PC', dir: 'C:/tmp/old' }); const row = (await hub.list('local')).find((x) => x.data.by === g.id);
+  await assert.rejects(hub.delLocal(o, row.id), /본인 줄만/); await hub.delLocal(g, row.id); assert.equal(await hub.get('local', row.id), null);
+}
 console.log('hub tests passed');
+
+// Custom pages: layouts require admin; members write only state of an existing tab.
+await assert.rejects(hub.apiWrite(b, {op:'set', path:'customtabs/demo', data:{title:'Demo',html:'<h1>Demo</h1>'}}), /no write access/);
+await hub.apiWrite(a, {op:'set',path:'customtabs/demo',data:{title:'Demo',html:'<h1>Demo</h1>'}});
+await hub.apiWrite(b, {op:'set',path:'customdata/demo',data:{value:{note:'saved'}}});
+assert.equal((await hub.apiGetDoc(v,'customdata/demo')).value.note,'saved');
+await assert.rejects(hub.apiWrite(v,{op:'set',path:'customdata/demo',data:{value:{}}}), /no write access/);
+await assert.rejects(hub.apiWrite(b,{op:'set',path:'customdata/missing',data:{value:{}}}), /탭 없음/);
+await assert.rejects(hub.apiWrite(a,{op:'set',path:'customtabs/bad',data:{title:'',html:''}}), /탭 이름/);
+await assert.rejects(hub.apiWrite(b,{op:'set',path:'customdata/demo',data:{value:{text:'x'.repeat(100001)}}}), /100KB/);
+await hub.apiWrite(a,{op:'delete',path:'customtabs/demo'});
+assert.equal(await hub.get('customdata','demo'),null);
+console.log('Custom tab permissions, validation and deletion passed');

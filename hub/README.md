@@ -20,6 +20,10 @@ Plus `reply` (answer a comment, or a work request that needs no code) and `item`
 
 **Tasks** (`tasks`, the 할 일 tab): a kanban (할 일 · 진행 · 검토 · 완료) with assignee, due date and the plan item it belongs to. Anyone with write access adds one; its creator, its assignee or an admin moves or edits it (the AI-side fields — claim, reply, PR — only change through the tools). Ticking *AI에게 맡기기* (or using 현황 → AI에게 맡긴 일) hands it to the assignee's AI, or to any AI when nobody is assigned: it shows in that member's `digest` (people-only tasks show as a count), the agent tells its user, then `claim(..., todo: id)` → 진행, `release` → 검토 (or 완료 with `state: done`) with the summary and PR. If the claim times out the task goes back to 할 일. `reply(comment: id)` answers one that needs no code; the `todo` tool lists, adds and moves tasks when a user asks.
 
+**Done criteria and handoff.** A task can carry 완료 기준 (`check`, one line each). The claim reply lists them, and `release` must report one `{ok, how}` per criterion in `checks` (an unmet one keeps the task in 검토); the page shows ✓/✗ on the task and the activity entry. `release(handoff)` — or `status(handoff)` when an agent stops mid-way — leaves a note on each module of the claim and on its task (done / left / watch out); the next claim of that module or task gets it in the reply. A claim that times out leaves its last progress line as the handoff.
+
+**Phase items** are lines the page sorts into sections: plain first lines = goal, `> ` = note, `- text #tag` = to-do with its indented `ㄴ …` progress lines folded under it, `끝 기준:` (or `완료:` without a date) = what done means, `완료: … (10/29, PR #n)` = finished pieces, `결정:` = decisions, `? ` = open questions.
+
 - Claims belong to one AI session (MCP session id), so two AIs of the same person can't hold one module either. If a session died, the next one asks its user and calls `claim(..., takeover: true)`.
 - A claim lasts 45 minutes after the holder's last call (any call renews it). If an agent stops without releasing (out of tokens, crashed, closed), a Durable Object alarm frees the module right at that time and the board shows it.
 - After a timed-out claim's module is taken by someone else, that old claim id no longer passes the CI check, and the original agent is told on its next call to stop and tell its user.
@@ -49,10 +53,16 @@ Globs: `src/room.js`, `src/**`, `tests/*.js`, `**/*.md`.
 3. **Open your board:** `https://<worker>.workers.dev/b/<board>/join?t=<OWNER_KEY>&name=<your name>`. `<board>` is any name (lowercase, digits, `-`); each name is a separate board.
 4. **Load data:** `node hub/import.mjs "<your join link>" <export.json> <seed.json>` — JSON files shaped `{docs:[{col,id,data}]}`, or a local board folder.
 5. **Invite people:** admins press **공유 · 멤버 초대** on the board: copy the board address, then pick people from your GitHub following/followers or search GitHub by username or name, choose a role and invite. (Or add GitHub usernames on `/b/<board>/admin`.) Invited people open the address and sign in with GitHub. Each member also has an invite link (no GitHub needed) and an MCP URL; treat both like passwords. The friends list uses the admin's own GitHub sign-in token (no scopes, public data only), stored on the board and never sent to the page.
-6. **Connect each AI** with the member's MCP URL:
+6. **Connect each AI** with the member's MCP URL, per project folder:
    - claude.ai: Settings → Connectors → Add custom connector → paste the URL.
    - Claude Code: `claude mcp add --transport http planboard <MCP URL>`
-   - Gemini CLI, in `~/.gemini/settings.json`: `{ "mcpServers": { "planboard": { "httpUrl": "<MCP URL>" } } }`
+   - Gemini CLI, in the project's `.gemini/settings.json`: `{ "mcpServers": { "planboard": { "httpUrl": "<MCP URL>" } } }`
+   - Antigravity, in the project's `.agents/plugins/planboard/`: `plugin.json` `{ "name": "planboard" }` and `mcp_config.json` `{ "mcpServers": { "planboard": { "url": "<MCP URL>" } } }`
+   - Codex, in the project's `.codex/config.toml` (trusted folder): `[mcp_servers.planboard]` `url = "<MCP URL>"`
+   - Keep these per project, not in the global files: the URL is one board's, so a global entry would send every project's claims to that board.
+7. **Optional, on each member's computer** (`<guard URL>` is the MCP URL with `/mcp/` → `/guard/`, `<report URL>` with `/mcp/` → `/local/`):
+   - **Edit guard:** save `/b/<board>/guard.sh` as `.git/planboard-guard`, then `git config planboard.guard <guard URL>` and `git config alias.pb-guard '!sh "$(git rev-parse --git-common-dir)/planboard-guard"'`. Have the AI run `git pb-guard claude` (or `antigravity`) as its pre-edit hook (Claude Code: `.claude/settings.json` `PreToolUse` on `Edit|Write|MultiEdit|NotebookEdit`). The board then refuses edits to module files the AI hasn't claimed — free files and other folders pass, and so does everything when the board can't be reached (the merge gate still checks).
+   - **Code version:** save `/b/<board>/report.sh` as `.git/planboard-report`, then `git config planboard.report <report URL>`, `git config alias.pb-report '!sh "$(git rev-parse --git-common-dir)/planboard-report"'` and `git pb-report install` (git hooks on commit, pull, checkout, push). Each computer tells the board its branch, commit, unpushed commits and uncommitted files, and 현황 → 코드 버전 compares them with GitHub main (fetched by the GitHub App, cached a minute). On your own row the page shows the git commands for that state, with a copy button.
 
 ## Merge gate (the board checks and merges PRs)
 

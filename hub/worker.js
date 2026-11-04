@@ -7,6 +7,7 @@
 //   /admin            members, invite links, MCP URLs       /api/*       page API (same as local/server.mjs) + /api/ws live updates
 //   /mcp/<token>      MCP (Streamable HTTP)                 /api/ci-check  CI: changed files vs. claims (Bearer CI_KEY)
 //   /login            sign in with GitHub (members registered by GitHub username on /admin)
+//   /img/<name>       a board picture (members)             /api/img?name=  admin: upload one (raw body, png/jpeg/webp/gif)
 // Secrets: OWNER_KEY (your master link: /b/<board>/join?t=<OWNER_KEY>), CI_KEY (GitHub Actions),
 //          GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET (GitHub OAuth app, callback <hub>/auth/github/callback).
 // Var: OWNER_GITHUB — your GitHub username; signing in with it makes you the owner of any board on this hub.
@@ -20,6 +21,9 @@ import { githubClient, verifyWebhook } from './github.js';
 const ghBoards = (env) => { const v = env.GH_BOARDS; if (v && typeof v === 'object') return v; try { return JSON.parse(v || '{}'); } catch { return {}; } };
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,40}$/;
+// board pictures (optional R2 binding IMAGES): kept per board as <board>/<name>, shown only to members. No SVG (script inside).
+const IMG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,100}\.(png|jpe?g|webp|gif)$/i;
+const IMG_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 
 export default {
   async fetch(req, env) {
@@ -44,8 +48,15 @@ export default {
       const q = new URLSearchParams({ client_id: env.GITHUB_CLIENT_ID, redirect_uri: u.origin + '/auth/github/callback', state, allow_signup: 'false' });
       return new Response(null, { status: 302, headers: { Location: 'https://github.com/login/oauth/authorize?' + q, 'Set-Cookie': `pb_oauth=${state}; Path=/auth; HttpOnly; Secure; SameSite=Lax; Max-Age=600` } });
     }
+    // every board request is a Durable Object request (free plan: 100k a day for the whole hub). One looping client
+    // (a page, an AI, a hook) on one board is cut off here, before the board wakes, so the other boards keep working.
+    if (env.RL_BOARD) {
+      const { success } = await env.RL_BOARD.limit({ key: m[1] + '|' + (req.headers.get('CF-Connecting-IP') || '') });
+      if (!success) { console.warn('rate limited', m[1], m[2], req.headers.get('User-Agent') || ''); return new Response('too many requests to this board — wait a minute', { status: 429, headers: { 'Retry-After': '60', 'Content-Type': 'text/plain; charset=utf-8' } }); }
+    }
     const stub = env.BOARD.get(env.BOARD.idFromName(m[1]));
-    return stub.fetch(req);
+    try { return await stub.fetch(req); }
+    catch (e) { console.error('board', m[1], e.message); return new Response('board unavailable: ' + e.message, { status: 503, headers: { 'Retry-After': '300', 'Content-Type': 'text/plain; charset=utf-8' } }); }
   },
 };
 
@@ -120,6 +131,22 @@ export class Board {
         if (mc.newSid) r.headers.set('Mcp-Session-Id', mc.newSid);
         return r;
       }
+      // a member's computer reports its git state (git hooks, `git pb-report`); the token in the path is the member's, like MCP
+      const lm = p.match(/^\/local\/([A-Za-z0-9_-]{8,})$/);
+      if (lm && req.method === 'POST') {
+        const me = await this.hub.byToken(lm[1]); if (!me || me.removed) return json(401, { error: 'unknown member token' });
+        const b = await req.json().catch(() => ({})); const v = await this.hub.setLocal(me, b); await this.schedule();
+        return json(200, { ok: true, behind: v.behind, main: v.main.slice(0, 7) });
+      }
+      // the AI's pre-edit hook (`git pb-guard <agent>`): {agent, root, hook: the hook's own stdin} → that agent's hook answer
+      const gm = p.match(/^\/guard\/([A-Za-z0-9_-]{8,})$/);
+      if (gm && req.method === 'POST') {
+        const me = await this.hub.byToken(gm[1]); if (!me || me.removed) return json(401, { error: 'unknown member token' });
+        const b = await req.json().catch(() => ({})), r = await this.hub.guard(me, hookPaths(b.hook), b.root); await this.schedule();
+        return json(200, hookAnswer(b.agent, r));
+      }
+      if (p === '/guard.sh') return new Response(GUARD_SH, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
+      if (p === '/report.sh') return new Response(REPORT_SH, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
       if (p === '/api/ci-check') {
         if (!this.env.CI_KEY || (req.headers.get('Authorization') || '') !== 'Bearer ' + this.env.CI_KEY) return json(401, { error: 'bad CI key' });
         return json(200, await this.hub.ciCheck(await req.json()));
@@ -153,7 +180,22 @@ export class Board {
         if (req.headers.get('Upgrade') !== 'websocket') return json(426, { error: 'websocket only' });
         const pair = new WebSocketPair(); this.ctx.acceptWebSocket(pair[1]); return new Response(null, { status: 101, webSocket: pair[0] });
       }
+      if (p.startsWith('/img/') && req.method === 'GET') {
+        const name = p.slice(5); if (!IMG.test(name)) throw httpErr(400, 'bad image name');
+        const o = this.env.IMAGES && (await this.env.IMAGES.get(slug + '/' + name));
+        if (!o) return new Response('not found', { status: 404 });
+        return new Response(o.body, { headers: { 'Content-Type': (o.httpMetadata && o.httpMetadata.contentType) || 'application/octet-stream', 'Cache-Control': 'private, max-age=3600', ETag: o.httpEtag, 'X-Content-Type-Options': 'nosniff' } });
+      }
       if (req.method !== 'GET' && req.headers.get('X-PB') !== '1') throw httpErr(403, 'missing header');
+      if (p === '/api/img' && req.method === 'POST') {
+        if (me.role !== 'admin') throw httpErr(403, 'admins only');
+        if (!this.env.IMAGES) throw httpErr(501, 'no picture store: bind an R2 bucket as IMAGES');
+        const name = u.searchParams.get('name') || ''; if (!IMG.test(name)) throw httpErr(400, 'bad image name (letters, digits, . _ -, ends in .png/.jpg/.webp/.gif)');
+        const type = (req.headers.get('Content-Type') || '').split(';')[0].trim().toLowerCase(); if (!IMG_TYPES.includes(type)) throw httpErr(415, 'png, jpeg, webp or gif only');
+        const buf = await req.arrayBuffer(); if (!buf.byteLength || buf.byteLength > 8 << 20) throw httpErr(413, 'empty or over 8 MB');
+        await this.env.IMAGES.put(slug + '/' + name, buf, { httpMetadata: { contentType: type } });
+        return json(200, { ok: true, md: `![${name}](img/${name})` });
+      }
       if (p === '/') return html(200, page(slug));
       if (p === '/pb-local.js') return js(SHIM);
       if (p === '/hub-ui.js') return js(UI);
@@ -166,9 +208,11 @@ export class Board {
       if (p === '/api/add' && req.method === 'POST') { const b = await req.json(); return json(200, { id: await this.hub.apiAdd(me, b.col, b.data) }); }
       if (p === '/api/import' && req.method === 'POST') { // admin: bulk load {docs:[{col,id,data}]} (moving a board here)
         if (me.role !== 'admin') throw httpErr(403, 'admins only');
-        const b = await req.json(); let n = 0; for (const d of b.docs || []) { await this.hub.apiWrite(me, { op: 'set', path: d.col + '/' + d.id, data: d.data }); n++; }
+        const b = await req.json(); let n = 0; for (const d of b.docs || []) { await this.hub.importDoc(me, d.col, d.id, d.data); n++; }
         return json(200, { ok: true, n });
       }
+      if (p === '/api/git') return json(200, { main: await this.hub.mainHead() });
+      if (p === '/api/local-del' && req.method === 'POST') { await this.hub.delLocal(me, String((await req.json()).id || '')); return json(200, { ok: true }); }
       if (p === '/api/team') return json(200, { team: (await this.hub.members()).filter((m) => !m.removed).map((m) => ({ id: m.id, name: m.name, github: m.github || '', role: m.role })) });
       if (p === '/api/crq' && req.method === 'POST') { const b = await req.json(); return json(200, { ok: true, text: await this.hub.decideCrq(me, String(b.id || ''), !!b.ok) }); }
       if (p === '/api/people') { // admin: GitHub people to invite — search results for ?q=, else the admin's following + followers
@@ -224,8 +268,14 @@ input,select,button{font:inherit}td input{width:100%;font:12px ui-monospace,mono
 <h2>Connecting an AI</h2>
 <p>Claude (claude.ai): Settings → Connectors → Add custom connector → paste the MCP URL.</p>
 <pre>claude mcp add --transport http planboard &lt;MCP URL&gt;          # Claude Code</pre>
-<pre>// Gemini CLI: ~/.gemini/settings.json
+<pre>// Gemini CLI: &lt;project&gt;/.gemini/settings.json
 { "mcpServers": { "planboard": { "httpUrl": "&lt;MCP URL&gt;" } } }</pre>
+<pre>// Antigravity: &lt;project&gt;/.agents/plugins/planboard/mcp_config.json (+ plugin.json: { "name": "planboard" })
+{ "mcpServers": { "planboard": { "url": "&lt;MCP URL&gt;" } } }</pre>
+<pre># Codex: &lt;project&gt;/.codex/config.toml (trusted folder)
+[mcp_servers.planboard]
+url = "&lt;MCP URL&gt;"</pre>
+<p>Put these in the project folder, not the global settings: the URL belongs to this board. The installer does this for you.</p>
 </main><script>const H={'Content-Type':'application/json','X-PB':'1'};
 f.onsubmit=async e=>{e.preventDefault();const r=await fetch('${base}/api/members',{method:'POST',headers:H,body:JSON.stringify(Object.fromEntries(new FormData(f)))});if(r.ok)location.reload();else alert((await r.json()).error)};
 document.querySelectorAll('.del').forEach(b=>b.onclick=async()=>{if(!confirm('Remove? Their links stop working.'))return;await fetch('${base}/api/members',{method:'DELETE',headers:H,body:JSON.stringify({id:b.dataset.id})});location.reload()});
@@ -244,6 +294,60 @@ function memCache(st) {
     delete: async (k) => { await st.delete(k); (await load()).delete(k); },
     list: async (p) => { const m = await load(); return new Map([...m].filter(([k]) => k.startsWith(p)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => [k, structuredClone(v)])); },
   };
+}
+// git state reporter, saved as .git/planboard-report (/b/<board>/report.sh): `git pb-report` sends, `git pb-report install` adds the hooks
+const REPORT_SH = `#!/bin/sh
+# Planboard: tell the board this folder's git state (branch, commit, commits not on GitHub, uncommitted files).
+u=$(git config planboard.report) || exit 0
+gd=$(git rev-parse --git-common-dir) || exit 0
+if [ "$1" = install ]; then
+  for h in post-commit post-merge post-checkout post-rewrite pre-push; do f="$gd/hooks/$h"
+    [ -f "$f" ] || printf '#!/bin/sh\\n' > "$f"
+    grep -q planboard-report "$f" || printf 'sh "$(git rev-parse --git-common-dir)/planboard-report" %s\\n' "$([ $h = pre-push ] && echo later)" >> "$f"
+    chmod +x "$f"
+  done
+  exit 0
+fi
+(
+  [ "$1" = later ] && sleep 8
+  q() { sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g'; }
+  up=origin; git remote get-url upstream >/dev/null 2>&1 && up=upstream
+  br=$(git rev-parse --abbrev-ref HEAD | q); hd=$(git rev-parse HEAD); base=$(git merge-base HEAD "$up/main")
+  ahead=$(git rev-list --count "$up/main..HEAD" || echo 0); unp=$(git rev-list --count '@{u}..HEAD' || echo "$ahead")
+  st=$(git status --porcelain); dn=$(printf '%s' "$st" | grep -c .)
+  dirty=$(printf '%s\\n' "$st" | grep . | head -30 | q | sed 's/^/"/; s/$/"/' | paste -sd, -)
+  # every folder of this repo that still exists (main folder + worktrees): the board drops rows of the ones that are gone
+  wts=$(git worktree list --porcelain | sed -n 's/^worktree //p' | head -30 | q | sed 's/^/"/; s/$/"/' | paste -sd, -)
+  cd_=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | q)
+  printf '{"branch":"%s","head":"%s","base":"%s","ahead":%s,"unpushed":%s,"dirtyN":%s,"dirty":[%s],"host":"%s","dir":"%s","common":"%s","worktrees":[%s]}' \\
+    "$br" "$hd" "$base" "\${ahead:-0}" "\${unp:-0}" "\${dn:-0}" "$dirty" "$(hostname | q)" "$(git rev-parse --show-toplevel | q)" "$cd_" "$wts" |
+    curl -s -m 15 -X POST -H 'Content-Type: application/json' --data-binary @- "$u"
+) >/dev/null 2>&1 </dev/null &
+`;
+// edit guard, saved as .git/planboard-guard (/b/<board>/guard.sh): the AI's pre-edit hook runs `git pb-guard <claude|antigravity>` with the hook's JSON on stdin
+const GUARD_SH = `#!/bin/sh
+# Planboard: may this member's AI edit this file now? Only inside modules they hold a claim on (free files always).
+# Not set up, or the board can't be reached: the edit goes through (the merge gate still checks the PR).
+a=\${1:-claude}
+pass() { if [ "$a" = antigravity ]; then echo '{"decision":"allow"}'; else echo '{}'; fi; exit 0; }
+u=$(git config planboard.guard 2>/dev/null); [ -n "$u" ] || pass
+root=$(git rev-parse --show-toplevel 2>/dev/null) || pass
+in=$(cat); [ -n "$in" ] || pass
+out=$( { printf '{"agent":"%s","root":"%s","hook":' "$a" "$(printf '%s' "$root" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')"; printf '%s' "$in"; printf '}'; } |
+  curl -s -f -m 8 -X POST -H 'Content-Type: application/json' --data-binary @- "$u" 2>/dev/null) || pass
+[ -n "$out" ] || pass
+echo "$out"
+`;
+// file paths in a hook's tool call: Claude Code tool_input.file_path / notebook_path, Antigravity toolCall.args.Path / TargetFile
+// (Antigravity sends each argument JSON-encoded, so "\\"C:\\\\…\\"" is unwrapped once)
+function hookPaths(h) {
+  const a = (h && (h.tool_input || (h.toolCall && h.toolCall.args))) || {}, out = [];
+  for (const [k, v0] of Object.entries(a)) { if (!/path|file/i.test(k) || typeof v0 !== 'string') continue; let v = v0; if (/^".*"$/s.test(v)) try { v = JSON.parse(v); } catch {} out.push(v); }
+  return out.slice(0, 20);
+}
+function hookAnswer(agent, r) {
+  if (agent === 'antigravity') return r.ok ? { decision: 'allow' } : { decision: 'deny', reason: r.reason };
+  return r.ok ? {} : { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: r.reason } };
 }
 function page(slug) {
   const pre = `<script>window.PB_BASE='/b/${slug}';window.PB_WS=true;</script><script src="/b/${slug}/pb-local.js"></script>`;
