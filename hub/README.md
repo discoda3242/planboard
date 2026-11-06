@@ -18,6 +18,14 @@ The board on a server, shared by people **and their AIs**. Each collaborator con
 
 Plus `reply` (answer a comment, or a work request that needs no code) and `item` (read a plan item or the memo; admins can edit items).
 
+**New modules.** A file no module owns blocks the edit guard and the PR check. For new feature files the agent calls `module(id, files, note)` (no args lists the modules): the module is added at once and logged in 활동, then the agent claims it. Rules it checks:
+- `id`: lowercase letters, digits and `-`, 2-30 characters.
+- `files`: 1-20 globs that start with a folder or file name (`src/battle/**`, not `**/*.ts`). None may overlap a file of an existing module or a folder in `_free`; splitting a module or moving files between modules stays with admins on the page, so a held module never loses files mid-work.
+- `note`: one line plus the check command, `"전투 계산. 확인: npm test -- battle"`.
+- `provides` / `requires`: existing contracts; a new contract it provides comes along as `contracts: [{name, md}]` and is owned by the new module.
+
+Splitting rules for whoever draws modules: one module = what one AI changes in one task (a task that always needs two modules means they are cut too fine); split by folder, single files only for entry points; shared config (package manifests, lock files, build and CI) goes to `tooling` or `_free`; anything another module calls has a contract.
+
 **Tasks** (`tasks`, the 할 일 tab): a kanban (할 일 · 진행 · 검토 · 완료) with assignee, due date and the plan item it belongs to. Anyone with write access adds one; its creator, its assignee or an admin moves or edits it (the AI-side fields — claim, reply, PR — only change through the tools). Ticking *AI에게 맡기기* (or using 현황 → AI에게 맡긴 일) hands it to the assignee's AI, or to any AI when nobody is assigned: it shows in that member's `digest` (people-only tasks show as a count), the agent tells its user, then `claim(..., todo: id)` → 진행, `release` → 검토 (or 완료 with `state: done`) with the summary and PR. If the claim times out the task goes back to 할 일. `reply(comment: id)` answers one that needs no code; the `todo` tool lists, adds and moves tasks when a user asks.
 
 **Done criteria and handoff.** A task can carry 완료 기준 (`check`, one line each). The claim reply lists them, and `release` must report one `{ok, how}` per criterion in `checks` (an unmet one keeps the task in 검토); the page shows ✓/✗ on the task and the activity entry. `release(handoff)` — or `status(handoff)` when an agent stops mid-way — leaves a note on each module of the claim and on its task (done / left / watch out); the next claim of that module or task gets it in the reply. A claim that times out leaves its last progress line as the handoff.

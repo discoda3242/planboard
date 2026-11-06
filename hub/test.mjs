@@ -53,6 +53,26 @@ r = await call(a, 'contract', { approve: crq }); assert.match(r, /승인: prize-
 r = await call(b, 'contract', { name: 'prize-spec' }); assert.match(r, /prize-spec v2/); assert.match(r, /weight/);
 r = await call(b, 'contract', {}); assert.match(r, /furniture-build v2/);
 
+// module: an AI adds a module only for files no module owns
+r = await call(b, 'module', {}); assert.match(r, /room: src\/room\.js/);
+await assert.rejects(call(v, 'module', { id: 'battle', files: ['src/battle/**'], note: '전투. 확인: npm test' }), /no access/);
+await assert.rejects(call(b, 'module', { id: 'Battle', files: ['src/battle/**'], note: '전투. 확인: npm test' }), /영어 소문자/);
+await assert.rejects(call(b, 'module', { id: 'room', files: ['src/x/**'], note: '확인: x' }), /이미 있어/);
+await assert.rejects(call(b, 'module', { id: 'battle', files: ['src/battle/**'], note: '전투 계산' }), /확인 명령/);
+await assert.rejects(call(b, 'module', { id: 'battle', files: ['**/*.ts'], note: '확인: x' }), /시작하는/);
+await assert.rejects(call(b, 'module', { id: 'battle', files: ['src/**'], note: '확인: x' }), /src\/\*\* ↔ room의 src\/room\.js/);
+await assert.rejects(call(b, 'module', { id: 'battle', files: ['dist/battle/**'], note: '확인: x' }), /_free/);
+await assert.rejects(call(b, 'module', { id: 'battle', files: ['src/battle/**'], note: '확인: x', requires: ['nope'] }), /없는 연결부: nope/);
+await assert.rejects(call(b, 'module', { id: 'battle', files: ['src/battle/**'], note: '확인: x', contracts: [{ name: 'battle-api', md: 'x' }] }), /provides에도/);
+r = await call(b, 'module', { id: 'battle', files: ['src/battle/**', './src/battle.css'], note: '전투 계산. 확인: npm test -- battle', requires: ['prize-spec'], provides: ['battle-api'], contracts: [{ name: 'battle-api', md: 'hit(a, b) -> dmg' }] });
+assert.match(r, /추가했어: battle/);
+const bm = await hub.get('modules', 'battle'); assert.deepEqual(bm.files, ['src/battle/**', 'src/battle.css']); assert.equal(bm.order, 6);
+assert.equal((await hub.get('contracts', 'battle-api')).owner, 'battle');
+assert.match((await hub.list('log')).find((l) => /모듈 추가/.test(l.data.text)).data.text, /battle: src\/battle\/\*\*/);
+await assert.rejects(call(a, 'module', { id: 'battle2', files: ['src/battle/ai.js'], note: '확인: x' }), /battle의 src\/battle\/\*\*/);
+await hub.del('modules', 'battle'); await hub.del('contracts', 'battle-api');
+for (const l of await hub.list('log')) if (/모듈 추가/.test(l.data.text)) await hub.del('log', l.id);
+
 // status → shows on the page log; lease renews
 T += 30 * 6e4; await call(b, 'status', { module: 'room', note: '버튼 부품 끝' });
 logs = await hub.list('log'); assert.match(logs[0].data.note, /버튼 부품 끝/);
@@ -103,7 +123,7 @@ assert.equal(await call(b, 'item', { id: 'links' }), '문서 https://example.com
 let res = await mcpHandle(hub, b, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } });
 assert.equal(res.result.protocolVersion, '2025-06-18'); assert.match(res.result.instructions, /claim/);
 assert.equal(await mcpHandle(hub, b, { jsonrpc: '2.0', method: 'notifications/initialized' }), null);
-res = await mcpHandle(hub, b, { jsonrpc: '2.0', id: 2, method: 'tools/list' }); assert.equal(res.result.tools.length, 8);
+res = await mcpHandle(hub, b, { jsonrpc: '2.0', id: 2, method: 'tools/list' }); assert.equal(res.result.tools.length, 9);
 await call(b, 'claim', { module: 'arcade', note: 'y' });
 res = await mcpHandle(hub, a, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'claim', arguments: { module: 'arcade', note: 'x' } } });
 assert.equal(res.result.isError, true); assert.match(res.result.content[0].text, /막힘/);
